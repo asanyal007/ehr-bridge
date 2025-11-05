@@ -39,9 +39,28 @@ yarn-error.log*
 frontend/build/
 frontend/.env.local
 
+# Frontend local artifacts
+frontend/frontend.log
+frontend/frontend.pid
+
 # Logs
 *.log
 logs/
+
+# MongoDB local data directory (if present)
+mongo_data/
+
+# Generated databases and runtime data (keep vocab seeds)
+data/*.db
+data/*.sqlite*
+backend/data/*.db
+backend/data/*.sqlite*
+
+# Packaging artifacts
+ehr-platform-macos/
+ehr-platform-macos.zip
+*.tar.gz
+*.zip
 
 # Testing
 .coverage
