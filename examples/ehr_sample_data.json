@@ -1,0 +1,161 @@
+{
+  "cancer_registry_patients": [
+    {
+      "patient_first_name": "Sarah",
+      "patient_last_name": "Johnson",
+      "patient_middle_initial": "M",
+      "date_of_birth": "1965-03-15",
+      "medical_record_number": "MRN123456",
+      "ssn": "123-45-6789",
+      "primary_diagnosis_icd10": "C50.9",
+      "diagnosis_date": "2024-01-15",
+      "primary_site_code": "C50.9",
+      "histology_code": "8500",
+      "grade": "2",
+      "tumor_size_mm": 25,
+      "lymph_nodes_positive": 2,
+      "lymph_nodes_examined": 8,
+      "metastasis_at_dx": false
+    },
+    {
+      "patient_first_name": "Michael",
+      "patient_last_name": "Chen",
+      "patient_middle_initial": "R",
+      "date_of_birth": "1958-07-22",
+      "medical_record_number": "MRN234567",
+      "ssn": "234-56-7890",
+      "primary_diagnosis_icd10": "C18.9",
+      "diagnosis_date": "2024-02-20",
+      "primary_site_code": "C18.9",
+      "histology_code": "8140",
+      "grade": "3",
+      "tumor_size_mm": 45,
+      "lymph_nodes_positive": 5,
+      "lymph_nodes_examined": 15,
+      "metastasis_at_dx": true
+    }
+  ],
+  "lab_results": [
+    {
+      "patient_id": "MRN123456",
+      "specimen_id": "SPEC-2024-001234",
+      "test_code_loinc": "2951-2",
+      "test_name": "Sodium, serum",
+      "result_value": "142",
+      "result_unit": "mmol/L",
+      "reference_range": "135-145",
+      "abnormal_flag": "N",
+      "result_status": "F",
+      "performed_datetime": "2024-10-11T08:30:00",
+      "reported_datetime": "2024-10-11T10:15:00"
+    },
+    {
+      "patient_id": "MRN123456",
+      "specimen_id": "SPEC-2024-001234",
+      "test_code_loinc": "6690-2",
+      "test_name": "White blood cell count",
+      "result_value": "8.5",
+      "result_unit": "10*3/uL",
+      "reference_range": "4.5-11.0",
+      "abnormal_flag": "N",
+      "result_status": "F",
+      "performed_datetime": "2024-10-11T08:30:00",
+      "reported_datetime": "2024-10-11T10:15:00"
+    },
+    {
+      "patient_id": "MRN234567",
+      "specimen_id": "SPEC-2024-001235",
+      "test_code_loinc": "2157-6",
+      "test_name": "Creatinine kinase",
+      "result_value": "245",
+      "result_unit": "U/L",
+      "reference_range": "30-200",
+      "abnormal_flag": "H",
+      "result_status": "F",
+      "performed_datetime": "2024-10-11T09:00:00",
+      "reported_datetime": "2024-10-11T11:30:00"
+    }
+  ],
+  "medications": [
+    {
+      "rx_number": "RX123456789",
+      "patient_id": "MRN123456",
+      "drug_name": "Tamoxifen",
+      "ndc_code": "0054-0042-25",
+      "drug_strength": "20 mg",
+      "dosage_form": "Tablet",
+      "directions": "Take 1 tablet by mouth once daily",
+      "quantity_dispensed": 30,
+      "days_supply": 30,
+      "refills_remaining": 11,
+      "prescriber_npi": "1234567890",
+      "fill_date": "2024-10-01",
+      "last_refill_date": "2024-10-01"
+    },
+    {
+      "rx_number": "RX234567890",
+      "patient_id": "MRN234567",
+      "drug_name": "Capecitabine",
+      "ndc_code": "0004-0222-11",
+      "drug_strength": "500 mg",
+      "dosage_form": "Tablet",
+      "directions": "Take 4 tablets by mouth twice daily",
+      "quantity_dispensed": 240,
+      "days_supply": 14,
+      "refills_remaining": 0,
+      "prescriber_npi": "2345678901",
+      "fill_date": "2024-10-05",
+      "last_refill_date": "2024-10-05"
+    }
+  ],
+  "clinical_trial_candidates": [
+    {
+      "patient_mrn": "MRN345678",
+      "age_years": 62,
+      "gender": "Female",
+      "race": "Caucasian",
+      "ethnicity": "Non-Hispanic",
+      "cancer_type_icd10": "C61",
+      "cancer_stage": "III",
+      "ecog_performance_status": 1,
+      "prior_treatments": "Surgery, Radiation",
+      "current_medications": "Tamoxifen, Metformin",
+      "comorbidities_icd10": "E11.9, I10",
+      "lab_wbc": 7.2,
+      "lab_anc": 4.5,
+      "lab_platelets": 185,
+      "lab_hemoglobin": 12.8,
+      "lab_creatinine": 0.9,
+      "lab_bilirubin": 0.6
+    }
+  ],
+  "radiology_reports": [
+    {
+      "accession_number": "RAD-2024-001234",
+      "patient_mrn": "MRN123456",
+      "study_type": "CT Chest/Abdomen/Pelvis with Contrast",
+      "study_date": "2024-10-10T14:30:00",
+      "findings_primary_mass": "Right breast mass",
+      "mass_size_cm": 2.5,
+      "mass_location": "Right breast, upper outer quadrant",
+      "lymph_nodes_involved": true,
+      "lymph_node_count": 2,
+      "metastatic_sites": "None identified",
+      "impression": "2.5 cm mass in right breast consistent with known malignancy. Two ipsilateral axillary lymph nodes with suspicious morphology. No distant metastases.",
+      "radiologist_name": "Dr. Emily Rodriguez"
+    }
+  ],
+  "hl7_patient_demographics": {
+    "PID-5.1": "Doe",
+    "PID-5.2": "John",
+    "PID-7": "1980-05-15",
+    "PID-18": "MRN987654",
+    "OBR-4.1": "CBC",
+    "OBR-7": "2024-10-11T08:00:00",
+    "OBX-3.1": "WBC",
+    "OBX-5": "9.2",
+    "OBX-6.1": "10*3/uL",
+    "OBX-14": "2024-10-11T10:30:00"
+  }
+}
+

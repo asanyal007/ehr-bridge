@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  # MongoDB for HL7 message staging and FHIR store
+  mongodb:
+    image: mongo:7.0
+    container_name: ehr-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    environment:
+      - MONGO_INITDB_DATABASE=ehr
+    restart: unless-stopped
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - ehr-network
+
+  # Backend + Frontend Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ehr-app
+    ports:
+      - "8000:8000"
+      - "3000:8000"  # Alternative port for frontend access
+    environment:
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-your-secret-key-change-in-production}
+      - DATABASE_PATH=/app/data/interop.db
+      - MONGO_HOST=mongodb
+      - MONGO_PORT=27017
+      - MONGO_DB=ehr
+      - PYTHONUNBUFFERED=1
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+    volumes:
+      # Persist SQLite databases
+      - ./data:/app/data:rw
+      - ./backend/data:/app/backend/data:rw
+      # Persist model cache (optional, speeds up restarts)
+      - model_cache:/root/.cache/torch
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+    networks:
+      - ehr-network
+
+volumes:
+  mongodb_data:
+    driver: local
+  mongodb_config:
+    driver: local
+  model_cache:
+    driver: local
+
+networks:
+  ehr-network:
+    driver: bridge

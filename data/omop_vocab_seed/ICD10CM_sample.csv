@@ -1,0 +1,7 @@
+concept_id,concept_name,domain_id,vocabulary_id,concept_code,standard_concept,concept_class_id,valid_start_date,valid_end_date
+900101,Malignant neoplasm of prostate,Condition,ICD10CM,C61,S,Diagnosis,2020-01-01,2099-12-31
+900102,Malignant neoplasm of lung,Condition,ICD10CM,C34.9,S,Diagnosis,2020-01-01,2099-12-31
+900103,Essential hypertension,Condition,ICD10CM,I10,S,Diagnosis,2020-01-01,2099-12-31
+900104,Type 2 diabetes mellitus,Condition,ICD10CM,E11,S,Diagnosis,2020-01-01,2099-12-31
+900105,Chronic kidney disease stage 3,Condition,ICD10CM,N18.3,S,Diagnosis,2020-01-01,2099-12-31
+

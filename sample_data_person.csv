@@ -1,0 +1,22 @@
+patient_id,first_name,last_name,gender,birth_date,mrn,race,ethnicity,zip_code,state,phone,email,insurance_type,primary_care_provider
+P001,James,Anderson,male,1985-03-15,MRN-001,White,Not Hispanic,10001,NY,555-0101,james.anderson@email.com,Medicare,Dr. Sarah Chen
+P002,Maria,Garcia,female,1992-07-22,MRN-002,Hispanic,Hispanic,90001,CA,555-0102,maria.garcia@email.com,Medicaid,Dr. Robert Kim
+P003,Robert,Johnson,male,1978-11-30,MRN-003,Black,Not Hispanic,60601,IL,555-0103,robert.johnson@email.com,Private,Dr. Emily Zhang
+P004,Jennifer,Williams,female,1989-05-18,MRN-004,White,Not Hispanic,02108,MA,555-0104,jennifer.williams@email.com,Medicare,Dr. Michael Patel
+P005,Michael,Brown,male,1995-09-25,MRN-005,Asian,Not Hispanic,98101,WA,555-0105,michael.brown@email.com,Private,Dr. Lisa Martinez
+P006,Linda,Davis,female,1982-02-14,MRN-006,White,Not Hispanic,33101,FL,555-0106,linda.davis@email.com,Medicaid,Dr. David Lee
+P007,David,Martinez,male,1987-12-08,MRN-007,Hispanic,Hispanic,75201,TX,555-0107,david.martinez@email.com,Private,Dr. Amanda Johnson
+P008,Sarah,Rodriguez,female,1991-04-20,MRN-008,Hispanic,Hispanic,85001,AZ,555-0108,sarah.rodriguez@email.com,Medicare,Dr. John Smith
+P009,John,Wilson,male,1976-08-03,MRN-009,White,Not Hispanic,19101,PA,555-0109,john.wilson@email.com,Private,Dr. Rachel Green
+P010,Patricia,Moore,female,1993-01-27,MRN-010,Black,Not Hispanic,80201,CO,555-0110,patricia.moore@email.com,Medicaid,Dr. Thomas Brown
+P011,Christopher,Taylor,male,1984-06-12,MRN-011,White,Not Hispanic,30301,GA,555-0111,christopher.taylor@email.com,Medicare,Dr. Jennifer White
+P012,Emily,Anderson,female,1990-10-05,MRN-012,Asian,Not Hispanic,97201,OR,555-0112,emily.anderson@email.com,Private,Dr. Kevin Wong
+P013,Daniel,Thomas,male,1988-03-19,MRN-013,White,Not Hispanic,63101,MO,555-0113,daniel.thomas@email.com,Medicaid,Dr. Sarah Kim
+P014,Jessica,Jackson,female,1994-07-08,MRN-014,Black,Not Hispanic,48201,MI,555-0114,jessica.jackson@email.com,Private,Dr. Robert Chen
+P015,Matthew,White,male,1981-11-23,MRN-015,White,Not Hispanic,55401,MN,555-0115,matthew.white@email.com,Medicare,Dr. Maria Lopez
+P016,Ashley,Harris,female,1996-02-16,MRN-016,Hispanic,Hispanic,78701,TX,555-0116,ashley.harris@email.com,Medicaid,Dr. James Park
+P017,Joshua,Martin,male,1986-05-29,MRN-017,White,Not Hispanic,20001,DC,555-0117,joshua.martin@email.com,Private,Dr. Linda Davis
+P018,Amanda,Thompson,female,1992-09-14,MRN-018,Asian,Not Hispanic,94102,CA,555-0118,amanda.thompson@email.com,Medicare,Dr. Michael Nguyen
+P019,Ryan,Garcia,male,1983-12-01,MRN-019,Hispanic,Hispanic,33101,FL,555-0119,ryan.garcia@email.com,Private,Dr. Elizabeth Lee
+P020,Stephanie,Martinez,female,1989-04-07,MRN-020,Hispanic,Hispanic,87101,NM,555-0120,stephanie.martinez@email.com,Medicaid,Dr. Daniel Rodriguez
+

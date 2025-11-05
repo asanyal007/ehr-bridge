@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Node
+node_modules/
+npm-debug.log*
+frontend/build/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+docs/
+
+# Test files
+test_*.py
+test_*.sh
+*_test.py
+
+# Logs
+*.log
+*.pid
+
+# Data (will be mounted as volumes)
+data/
+mongo_data/
+backend/data/
+
+# Temporary
+*.tmp
+*.bak

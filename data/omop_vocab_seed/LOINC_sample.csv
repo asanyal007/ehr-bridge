@@ -1,0 +1,6 @@
+concept_id,concept_name,domain_id,vocabulary_id,concept_code,standard_concept,concept_class_id,valid_start_date,valid_end_date
+910101,Creatinine [Mass/volume] in Serum or Plasma,Measurement,LOINC,2160-0,S,Lab Test,2020-01-01,2099-12-31
+910102,Glucose [Mass/volume] in Blood,Measurement,LOINC,2339-0,S,Lab Test,2020-01-01,2099-12-31
+910103,Hemoglobin A1c [Mass/volume] in Blood,Measurement,LOINC,4548-4,S,Lab Test,2020-01-01,2099-12-31
+910104,Potassium [Moles/volume] in Serum or Plasma,Measurement,LOINC,2823-3,S,Lab Test,2020-01-01,2099-12-31
+

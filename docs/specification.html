@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Data Interoperability Platform - Specification</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom Calm Harmony Color Palette */
+        :root {
+            --color-warm-100: #f5f3f0;
+            --color-warm-200: #e8e3dc;
+            --color-warm-300: #d4c9ba;
+            --color-warm-400: #bea994;
+            --color-warm-500: #a88c6f;
+            --color-warm-600: #8b6f4f;
+            --color-warm-700: #6f5840;
+            --color-warm-800: #534334;
+            --color-accent: #dc2626;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, var(--color-warm-100) 0%, var(--color-warm-200) 100%);
+        }
+
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            width: 280px;
+            background: linear-gradient(180deg, var(--color-warm-800) 0%, var(--color-warm-700) 100%);
+            overflow-y: auto;
+            z-index: 1000;
+            box-shadow: 4px 0 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .main-content {
+            margin-left: 280px;
+            padding: 2rem;
+            min-height: 100vh;
+        }
+
+        .nav-link {
+            transition: all 0.2s ease;
+            border-left: 4px solid transparent;
+        }
+
+        .nav-link:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-left-color: var(--color-accent);
+        }
+
+        .nav-link.active {
+            background: rgba(255, 255, 255, 0.15);
+            border-left-color: var(--color-accent);
+            font-weight: 600;
+        }
+
+        .section {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        }
+
+        .tab-button {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            background: var(--color-warm-200);
+            color: var(--color-warm-800);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border-radius: 8px 8px 0 0;
+        }
+
+        .tab-button.active {
+            background: white;
+            font-weight: 600;
+            border-bottom: 3px solid var(--color-accent);
+        }
+
+        .tab-button:hover:not(.active) {
+            background: var(--color-warm-300);
+        }
+
+        .tab-content {
+            display: none;
+            padding: 1.5rem;
+            background: white;
+            border-radius: 0 0 8px 8px;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            background: var(--color-warm-600);
+            color: white;
+            padding: 0.75rem;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        td {
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--color-warm-200);
+        }
+
+        tr:hover {
+            background: var(--color-warm-100);
+        }
+
+        code {
+            background: var(--color-warm-100);
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--color-warm-800);
+            color: #f5f3f0;
+            padding: 1rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 0.85em;
+        }
+
+        /* Interactive Mockup Styles */
+        .mockup-container {
+            border: 2px solid var(--color-warm-400);
+            border-radius: 12px;
+            overflow: hidden;
+            background: white;
+        }
+
+        .mockup-header {
+            background: var(--color-warm-700);
+            color: white;
+            padding: 1rem;
+            font-weight: 600;
+        }
+
+        .mockup-content {
+            padding: 1.5rem;
+            min-height: 400px;
+        }
+
+        .job-card {
+            border: 2px solid var(--color-warm-300);
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .job-card:hover {
+            border-color: var(--color-accent);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .status-draft { background: #e5e7eb; color: #374151; }
+        .status-analyzing { background: #dbeafe; color: #1e40af; }
+        .status-pending { background: #fef3c7; color: #92400e; }
+        .status-approved { background: #d1fae5; color: #065f46; }
+
+        .mapping-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            background: var(--color-warm-100);
+            border-radius: 8px;
+            border: 2px solid transparent;
+            transition: all 0.2s ease;
+        }
+
+        .mapping-row.approved {
+            border-color: #10b981;
+            background: #d1fae5;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: var(--color-warm-600);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--color-warm-700);
+        }
+
+        .btn-accent {
+            background: var(--color-accent);
+            color: white;
+        }
+
+        .btn-accent:hover {
+            background: #b91c1c;
+        }
+
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+        }
+    </style>
+</head>
+<body>
+    <!-- Fixed Sidebar -->
+    <nav class="sidebar">
+        <div class="p-6 border-b border-white/20">
+            <h1 class="text-white text-xl font-bold">AI Data Interoperability</h1>
+            <p class="text-white/70 text-sm mt-1">Platform Specification</p>
+        </div>
+        
+        <div class="py-4">
+            <a href="#overview" class="nav-link block px-6 py-3 text-white/90 hover:text-white">
+                1. Project Overview
+            </a>
+            <a href="#backend" class="nav-link block px-6 py-3 text-white/90 hover:text-white">
+                2. Backend Architecture
+            </a>
+            <a href="#frontend" class="nav-link block px-6 py-3 text-white/90 hover:text-white">
+                3. Frontend Architecture
+            </a>
+            <a href="#walkthrough" class="nav-link block px-6 py-3 text-white/90 hover:text-white">
+                4. Interactive Walkthrough
+            </a>
+            <a href="#implementation" class="nav-link block px-6 py-3 text-white/90 hover:text-white">
+                5. Implementation Guide
+            </a>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+        <!-- Section 1: Overview -->
+        <section id="overview" class="section">
+            <h2 class="text-3xl font-bold mb-4" style="color: var(--color-warm-800)">1. Project Overview</h2>
+            
+            <p class="text-lg mb-6" style="color: var(--color-warm-700)">
+                A full-stack, AI-driven platform designed to automate data interoperability through mapping, 
+                cleansing, and transformation with a human-in-the-loop validation process.
+            </p>
+
+            <h3 class="text-2xl font-semibold mb-3" style="color: var(--color-warm-700)">Design Principles</h3>
+            
+            <table class="mb-6">
+                <thead>
+                    <tr>
+                        <th>Design Element</th>
+                        <th>Detail</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Chosen Palette</strong></td>
+                        <td>Calm Harmony - Grounded in warm neutrals with subtle accents</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Application Structure</strong></td>
+                        <td>Single-page interactive specification with fixed sidebar navigation</td>
+                    </tr>
+                    <tr>
+                        <td><strong>User Experience</strong></td>
+                        <td>Task-based exploration with interactive UI mockups</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3 class="text-2xl font-semibold mb-3" style="color: var(--color-warm-700)">Technology Stack</h3>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Component</th>
+                        <th>Technology</th>
+                        <th>Rationale</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Backend</strong></td>
+                        <td>Python 3.10+ (FastAPI)</td>
+                        <td>Host ML models and expose secure API</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Frontend</strong></td>
+                        <td>React (Single File App.jsx)</td>
+                        <td>Mandatory single-file structure for Canvas environment</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Styling</strong></td>
+                        <td>Tailwind CSS</td>
+                        <td>Modern, responsive UI design</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Database</strong></td>
+                        <td>Google Firestore</td>
+                        <td>Persistent storage for configuration and state</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Authentication</strong></td>
+                        <td>Firebase Auth</td>
+                        <td>Canvas Globals integration</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- Section 2: Backend -->
+        <section id="backend" class="section">
+            <h2 class="text-3xl font-bold mb-4" style="color: var(--color-warm-800)">2. Backend Architecture</h2>
+            
+            <p class="mb-6" style="color: var(--color-warm-700)">
+                The Python backend serves as the brain of the operation, handling all AI/ML processing, 
+                data modeling, and API communications.
+            </p>
+
+            <h3 class="text-2xl font-semibold mb-3" style="color: var(--color-warm-700)">Firestore Data Models</h3>
+
+            <div class="mb-6">
+                <h4 class="text-xl font-semibold mb-2" style="color: var(--color-warm-600)">Mappings Collection</h4>
+                <p class="mb-2"><code>Path: /artifacts/{appId}/public/data/mappings</code></p>
+                
+                <pre>{
+  "jobId": "string (doc ID)",
+  "sourceSchema": {"cust_name": "string", "order_date": "date"},
+  "targetSchema": {"customerName": "string", "purchaseDate": "datetime"},
+  "suggestedMappings": [
+    {
+      "sourceField": "cust_name",
+      "targetField": "customerName",
+      "confidenceScore": 0.95,
+      "suggestedTransform": "DIRECT"
+    }
+  ],
+  "finalMappings": [],
+  "status": "DRAFT | PENDING_REVIEW | APPROVED | ERROR",
+  "userId": "string"
+}</pre>
+            </div>
+
+            <div class="mb-6">
+                <h4 class="text-xl font-semibold mb-2" style="color: var(--color-warm-600)">DataProfiles Collection</h4>
+                <p class="mb-2"><code>Path: /artifacts/{appId}/users/{userId}/data_profiles</code></p>
+                <p style="color: var(--color-warm-700)">Stores statistical profiles of source data columns for ML feature engineering.</p>
+            </div>
+
+            <h3 class="text-2xl font-semibold mb-3" style="color: var(--color-warm-700)">REST API Endpoints</h3>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Method</th>
+                        <th>Endpoint</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>GET</code></td>
+                        <td><code>/api/v1/jobs</code></td>
+                        <td>Retrieve all mapping jobs from Firestore</td>
+                    </tr>
+                    <tr>
+                        <td><code>POST</code></td>
+                        <td><code>/api/v1/jobs</code></td>
+                        <td>Create a new mapping job (status: DRAFT)</td>
+                    </tr>
+                    <tr>
+                        <td><code>POST</code></td>
+                        <td><code>/api/v1/jobs/{jobId}/analyze</code></td>
+                        <td>Trigger ML analysis, update to PENDING_REVIEW</td>
+                    </tr>
+                    <tr>
+                        <td><code>PUT</code></td>
+                        <td><code>/api/v1/jobs/{jobId}/approve</code></td>
+                        <td>Update with final mappings, set to APPROVED</td>
+                    </tr>
+                    <tr>
+                        <td><code>POST</code></td>
+                        <td><code>/api/v1/jobs/{jobId}/transform</code></td>
+                        <td>Execute transformation on sample data</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3 class="text-2xl font-semibold mb-3 mt-6" style="color: var(--color-warm-700)">Simulated AI/ML Logic</h3>
+            
+            <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4">
+                <p class="font-semibold text-blue-800">Analysis Process</p>
+                <ul class="list-disc ml-6 mt-2 text-blue-700">
+                    <li><strong>Feature Extraction:</strong> Analyze column names using Levenshtein distance</li>
+                    <li><strong>Semantic Matching:</strong> Generate potential mappings with confidence scores (0.5-1.0)</li>
+                    <li><strong>Transformation Synthesis:</strong> Suggest CONCAT for name fields, DIRECT for others</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- Section 3: Frontend -->
+        <section id="frontend" class="section">
+            <h2 class="text-3xl font-bold mb-4" style="color: var(--color-warm-800)">3. Frontend Architecture</h2>
+            
+            <p class="mb-6" style="color: var(--color-warm-700)">
+                The React frontend is a single-file SPA designed for a fluid user experience, handling all 
+                user interactions, state management, and backend communication.
+            </p>
+
+            <h3 class="text-2xl font-semibold mb-3" style="color: var(--color-warm-700)">Firebase Initialization</h3>
+            
+            <div class="bg-yellow-50 border-l-4 border-yellow-500 p-4 mb-6">
+                <p class="font-semibold text-yellow-800">Canvas Environment Integration</p>
+                <ul class="list-disc ml-6 mt-2 text-yellow-700">
+                    <li>Initialize Firebase using <code>window.__firebase_config</code></li>
+                    <li>Use <code>window.__initial_auth_token</code> for authentication</li>
+                    <li>Manage component state for <code>db</code>, <code>auth</code>, <code>userId</code></li>
+                    <li>Ensure services are ready before Firestore queries</li>
+                </ul>
+            </div>
+
+            <h3 class="text-2xl font-semibold mb-3" style="color: var(--color-warm-700)">UI Views and Workflow</h3>
+            
+            <!-- Tabbed Interface -->
+            <div class="mb-6">
+                <div class="flex space-x-2 mb-0">
+                    <button class="tab-button active" onclick="switchTab('view1')">Job List View</button>
+                    <button class="tab-button" onclick="switchTab('view2')">Configuration View</button>
+                    <button class="tab-button" onclick="switchTab('view3')">HITL Review View</button>
+                    <button class="tab-button" onclick="switchTab('view4')">Transform Test View</button>
+                </div>
+                
+                <div id="view1" class="tab-content active">
+                    <h4 class="font-semibold mb-2">Job List View</h4>
+                    <p class="mb-3">The main dashboard showing all mapping jobs in real-time from Firestore.</p>
+                    <ul class="list-disc ml-6">
+                        <li>Display job cards with status badges</li>
+                        <li>Show source → target field counts</li>
+                        <li>Allow creation of new jobs</li>
+                        <li>Click to view job details</li>
+                    </ul>
+                </div>
+                
+                <div id="view2" class="tab-content">
+                    <h4 class="font-semibold mb-2">Mapping Configuration View</h4>
+                    <p class="mb-3">Form for pasting source and target schemas in JSON format.</p>
+                    <ul class="list-disc ml-6">
+                        <li>Two text areas for schema input</li>
+                        <li>JSON validation</li>
+                        <li>"Analyze" button triggers backend AI process</li>
+                        <li>Creates job with DRAFT status</li>
+                    </ul>
+                </div>
+                
+                <div id="view3" class="tab-content">
+                    <h4 class="font-semibold mb-2">Human-in-the-Loop Review View</h4>
+                    <p class="mb-3">Core interactive component for reviewing AI suggestions.</p>
+                    <ul class="list-disc ml-6">
+                        <li>Two-column layout showing source → target mappings</li>
+                        <li>Confidence scores with color indicators</li>
+                        <li>Approve/Reject buttons for each suggestion</li>
+                        <li>Add manual mappings capability</li>
+                        <li>Finalize button to approve all selections</li>
+                    </ul>
+                </div>
+                
+                <div id="view4" class="tab-content">
+                    <h4 class="font-semibold mb-2">Transformation Test View</h4>
+                    <p class="mb-3">Interface to test approved mappings against sample data.</p>
+                    <ul class="list-disc ml-6">
+                        <li>Display approved mappings summary</li>
+                        <li>Text area for sample JSON data input</li>
+                        <li>Execute transformation button</li>
+                        <li>View transformed results</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 4: Interactive Walkthrough -->
+        <section id="walkthrough" class="section">
+            <h2 class="text-3xl font-bold mb-4" style="color: var(--color-warm-800)">4. Interactive Walkthrough</h2>
+            
+            <p class="mb-6" style="color: var(--color-warm-700)">
+                Experience the complete user journey through this interactive mockup simulation.
+            </p>
+
+            <!-- Interactive Mockup -->
+            <div class="mockup-container">
+                <div class="mockup-header">
+                    <div class="flex justify-between items-center">
+                        <span id="mockup-title">AI Data Interoperability Platform</span>
+                        <span id="mockup-status" class="text-sm opacity-75">User: demo_user_123</span>
+                    </div>
+                </div>
+                
+                <div class="mockup-content">
+                    <!-- Step 1: Job List -->
+                    <div id="step-list" class="mockup-step">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xl font-bold">Mapping Jobs</h3>
+                            <button class="btn btn-primary" onclick="goToStep('configure')">+ Create New Job</button>
+                        </div>
+                        
+                        <div class="job-card">
+                            <div class="flex justify-between items-start mb-2">
+                                <div>
+                                    <h4 class="font-semibold">Job abc123def</h4>
+                                    <p class="text-sm text-gray-600">5 source fields → 4 target fields</p>
+                                </div>
+                                <span class="status-badge status-approved">APPROVED</span>
+                            </div>
+                            <p class="text-sm text-green-600">✓ 4 approved mappings</p>
+                            <p class="text-xs text-gray-500 mt-1">Created: 2024-10-10 14:30</p>
+                        </div>
+                        
+                        <div class="job-card">
+                            <div class="flex justify-between items-start mb-2">
+                                <div>
+                                    <h4 class="font-semibold">Job xyz789abc</h4>
+                                    <p class="text-sm text-gray-600">3 source fields → 3 target fields</p>
+                                </div>
+                                <span class="status-badge status-draft">DRAFT</span>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">Created: 2024-10-11 09:15</p>
+                        </div>
+                        
+                        <div class="bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mt-4">
+                            <p class="text-gray-500">Click "+ Create New Job" to start a new mapping</p>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Configure -->
+                    <div id="step-configure" class="mockup-step" style="display: none;">
+                        <div class="flex items-center mb-4">
+                            <button class="text-blue-600 hover:underline mr-3" onclick="goToStep('list')">← Back</button>
+                            <h3 class="text-xl font-bold">Configure Mapping Job</h3>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label class="block font-semibold mb-2">Source Schema (JSON)</label>
+                                <textarea class="w-full h-32 p-2 border rounded" readonly>{"first_name": "string", "last_name": "string", "email": "string"}</textarea>
+                            </div>
+                            <div>
+                                <label class="block font-semibold mb-2">Target Schema (JSON)</label>
+                                <textarea class="w-full h-32 p-2 border rounded" readonly>{"full_name": "string", "contact_email": "string"}</textarea>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-blue-50 border border-blue-200 p-3 rounded mb-4">
+                            <p class="text-sm text-blue-800">
+                                ✓ Job created with status: <strong>DRAFT</strong>
+                            </p>
+                        </div>
+                        
+                        <button class="btn btn-accent" onclick="goToStep('analyzing')">Analyze Schemas (AI) →</button>
+                    </div>
+
+                    <!-- Step 3: Analyzing -->
+                    <div id="step-analyzing" class="mockup-step" style="display: none;">
+                        <div class="flex items-center mb-4">
+                            <h3 class="text-xl font-bold">Analyzing Schemas...</h3>
+                        </div>
+                        
+                        <div class="flex items-center justify-center py-12">
+                            <div>
+                                <div class="animate-spin rounded-full h-16 w-16 border-b-2 mx-auto mb-4" style="border-color: var(--color-accent);"></div>
+                                <p class="text-center text-gray-600">AI is analyzing your schemas</p>
+                                <p class="text-center text-sm text-gray-500 mt-1">Extracting features and generating mappings...</p>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-blue-50 border border-blue-200 p-3 rounded">
+                            <p class="text-sm text-blue-800">
+                                Status updated to: <strong>ANALYZING</strong>
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Step 4: Review -->
+                    <div id="step-review" class="mockup-step" style="display: none;">
+                        <div class="flex items-center mb-4">
+                            <button class="text-blue-600 hover:underline mr-3" onclick="goToStep('list')">← Back</button>
+                            <h3 class="text-xl font-bold">Review AI Suggestions</h3>
+                        </div>
+                        
+                        <div class="bg-yellow-50 border border-yellow-200 p-3 rounded mb-4">
+                            <p class="text-sm text-yellow-800">
+                                Status: <strong>PENDING_REVIEW</strong> - Please review and approve mappings
+                            </p>
+                        </div>
+                        
+                        <div class="mapping-row" id="mapping-1">
+                            <div class="flex-1">
+                                <div class="flex items-center space-x-4">
+                                    <div>
+                                        <p class="text-xs text-gray-500">Source</p>
+                                        <p class="font-mono font-semibold">first_name, last_name</p>
+                                    </div>
+                                    <span class="text-gray-400">→</span>
+                                    <div>
+                                        <p class="text-xs text-gray-500">Target</p>
+                                        <p class="font-mono font-semibold">full_name</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center space-x-3 mt-2">
+                                    <span class="text-xs"><strong>Transform:</strong> CONCAT</span>
+                                    <span class="text-xs"><strong>Confidence:</strong> <span class="text-green-600 font-bold">92%</span></span>
+                                </div>
+                            </div>
+                            <div class="flex space-x-2">
+                                <button class="btn btn-success text-sm py-1 px-3" onclick="approveMapping(1)">✓ Approve</button>
+                                <button class="btn bg-gray-300 text-sm py-1 px-3">✗ Reject</button>
+                            </div>
+                        </div>
+                        
+                        <div class="mapping-row" id="mapping-2">
+                            <div class="flex-1">
+                                <div class="flex items-center space-x-4">
+                                    <div>
+                                        <p class="text-xs text-gray-500">Source</p>
+                                        <p class="font-mono font-semibold">email</p>
+                                    </div>
+                                    <span class="text-gray-400">→</span>
+                                    <div>
+                                        <p class="text-xs text-gray-500">Target</p>
+                                        <p class="font-mono font-semibold">contact_email</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center space-x-3 mt-2">
+                                    <span class="text-xs"><strong>Transform:</strong> DIRECT</span>
+                                    <span class="text-xs"><strong>Confidence:</strong> <span class="text-green-600 font-bold">95%</span></span>
+                                </div>
+                            </div>
+                            <div class="flex space-x-2">
+                                <button class="btn btn-success text-sm py-1 px-3" onclick="approveMapping(2)">✓ Approve</button>
+                                <button class="btn bg-gray-300 text-sm py-1 px-3">✗ Reject</button>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-6 flex justify-end">
+                            <button class="btn btn-success" onclick="goToStep('finalizing')">Finalize and Approve Mappings</button>
+                        </div>
+                    </div>
+
+                    <!-- Step 5: Finalizing -->
+                    <div id="step-finalizing" class="mockup-step" style="display: none;">
+                        <div class="flex items-center justify-center py-12">
+                            <div>
+                                <div class="text-6xl mb-4 text-center">✓</div>
+                                <h3 class="text-2xl font-bold text-center text-green-600 mb-2">Mappings Approved!</h3>
+                                <p class="text-center text-gray-600">Job status updated to <strong>APPROVED</strong></p>
+                                <p class="text-center text-sm text-gray-500 mt-2">Redirecting to job list...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Walkthrough Controls -->
+            <div class="mt-6 flex justify-center space-x-4">
+                <button class="btn btn-primary" onclick="resetWalkthrough()">🔄 Restart Walkthrough</button>
+            </div>
+
+            <!-- Walkthrough Steps Legend -->
+            <div class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 class="font-semibold mb-3">Walkthrough Steps:</h4>
+                <ol class="list-decimal ml-6 space-y-2">
+                    <li><strong>Start:</strong> User sees Job List View with existing jobs</li>
+                    <li><strong>Action:</strong> Click "+ Create New Job"</li>
+                    <li><strong>Transition:</strong> Switch to Configuration View, paste schemas</li>
+                    <li><strong>Action:</strong> Click "Analyze Schemas (AI) →"</li>
+                    <li><strong>Status:</strong> Temporarily changes to ANALYZING</li>
+                    <li><strong>Transition:</strong> Switch to HITL Review View with AI suggestions</li>
+                    <li><strong>Action:</strong> Review and approve mappings</li>
+                    <li><strong>Final:</strong> Status updates to APPROVED, return to Job List</li>
+                </ol>
+            </div>
+        </section>
+
+        <!-- Section 5: Implementation -->
+        <section id="implementation" class="section">
+            <h2 class="text-3xl font-bold mb-4" style="color: var(--color-warm-800)">5. Implementation Guide</h2>
+            
+            <h3 class="text-2xl font-semibold mb-3" style="color: var(--color-warm-700)">Quick Start</h3>
+            
+            <div class="mb-6">
+                <h4 class="text-xl font-semibold mb-2" style="color: var(--color-warm-600)">Backend Setup</h4>
+                <pre>cd backend
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000</pre>
+            </div>
+
+            <div class="mb-6">
+                <h4 class="text-xl font-semibold mb-2" style="color: var(--color-warm-600)">Frontend Setup</h4>
+                <pre>cd frontend
+npm install
+npm start</pre>
+            </div>
+
+            <h3 class="text-2xl font-semibold mb-3" style="color: var(--color-warm-700)">Key Files</h3>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>File</th>
+                        <th>Purpose</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>backend/main.py</code></td>
+                        <td>FastAPI application with REST endpoints</td>
+                    </tr>
+                    <tr>
+                        <td><code>backend/ai_engine.py</code></td>
+                        <td>Simulated AI/ML logic for schema analysis</td>
+                    </tr>
+                    <tr>
+                        <td><code>backend/firestore_client.py</code></td>
+                        <td>Firestore database operations</td>
+                    </tr>
+                    <tr>
+                        <td><code>frontend/src/App.jsx</code></td>
+                        <td>Single-file React application</td>
+                    </tr>
+                    <tr>
+                        <td><code>frontend/public/index.html</code></td>
+                        <td>HTML template with Firebase config</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3 class="text-2xl font-semibold mb-3 mt-6" style="color: var(--color-warm-700)">Next Steps</h3>
+            
+            <div class="bg-green-50 border-l-4 border-green-500 p-4">
+                <ol class="list-decimal ml-6 space-y-2">
+                    <li>Set up Firebase project and download service account key</li>
+                    <li>Update <code>window.__firebase_config</code> in index.html</li>
+                    <li>Set <code>GOOGLE_APPLICATION_CREDENTIALS</code> environment variable</li>
+                    <li>Start backend and frontend servers</li>
+                    <li>Access application at <code>http://localhost:3000</code></li>
+                    <li>View API docs at <code>http://localhost:8000/docs</code></li>
+                </ol>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // Tab switching functionality
+        function switchTab(tabId) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Remove active class from all buttons
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.remove('active');
+            });
+            
+            // Show selected tab content
+            document.getElementById(tabId).classList.add('active');
+            
+            // Add active class to clicked button
+            event.target.classList.add('active');
+        }
+
+        // Interactive walkthrough functionality
+        function goToStep(step) {
+            // Hide all steps
+            document.querySelectorAll('.mockup-step').forEach(s => {
+                s.style.display = 'none';
+            });
+            
+            // Show selected step
+            const stepMap = {
+                'list': 'step-list',
+                'configure': 'step-configure',
+                'analyzing': 'step-analyzing',
+                'review': 'step-review',
+                'finalizing': 'step-finalizing'
+            };
+            
+            const stepId = stepMap[step];
+            if (stepId) {
+                document.getElementById(stepId).style.display = 'block';
+            }
+            
+            // Special handling for analyzing step
+            if (step === 'analyzing') {
+                setTimeout(() => {
+                    goToStep('review');
+                }, 2500);
+            }
+            
+            // Special handling for finalizing step
+            if (step === 'finalizing') {
+                setTimeout(() => {
+                    goToStep('list');
+                }, 3000);
+            }
+        }
+
+        function approveMapping(id) {
+            const mapping = document.getElementById(`mapping-${id}`);
+            mapping.classList.add('approved');
+            event.target.textContent = '✓ Approved';
+            event.target.disabled = true;
+        }
+
+        function resetWalkthrough() {
+            // Reset all mappings
+            document.querySelectorAll('.mapping-row').forEach(row => {
+                row.classList.remove('approved');
+            });
+            
+            // Reset buttons
+            document.querySelectorAll('.mapping-row button').forEach(btn => {
+                if (btn.textContent.includes('Approve')) {
+                    btn.textContent = '✓ Approve';
+                    btn.disabled = false;
+                }
+            });
+            
+            // Go to first step
+            goToStep('list');
+        }
+
+        // Smooth scrolling for navigation links
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const targetId = this.getAttribute('href').substring(1);
+                const target = document.getElementById(targetId);
+                
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+                
+                // Update active nav link
+                document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+
+        // Update active nav link on scroll
+        window.addEventListener('scroll', () => {
+            const sections = document.querySelectorAll('section[id]');
+            let current = '';
+            
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop;
+                const sectionHeight = section.clientHeight;
+                if (window.pageYOffset >= sectionTop - 100) {
+                    current = section.getAttribute('id');
+                }
+            });
+            
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('href') === `#${current}`) {
+                    link.classList.add('active');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
+

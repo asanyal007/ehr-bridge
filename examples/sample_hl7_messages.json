@@ -1,0 +1,148 @@
+{
+  "adt_admission": {
+    "messageId": "ADT_A01_001",
+    "messageType": "ADT^A01",
+    "description": "Patient Admission Message",
+    "rawMessage": "MSH|^~\\&|EPIC|UCSF|INTERFACE|UCSF|20241011143052||ADT^A01|MSG000001|P|2.5\nEVN|A01|20241011143052\nPID|1||MRN123456^^^UCSF^MR||DOE^JOHN^ROBERT||19800515|M|||123 MAIN ST^^SAN FRANCISCO^CA^94102||555-1234|555-5678||S||12345678|123-45-6789\nPV1|1|I|3N^301^01^UCSF||||123456^SMITH^JANE^^^MD|||MED|||||||123456^SMITH^JANE^^^MD|INP|V123456|||||||||||||||||||||||||20241011143000",
+    "parsed": {
+      "MSH": {
+        "sending_application": "EPIC",
+        "sending_facility": "UCSF",
+        "message_type": "ADT^A01",
+        "message_control_id": "MSG000001",
+        "timestamp": "20241011143052"
+      },
+      "PID": {
+        "patient_id": "MRN123456",
+        "patient_name": "DOE^JOHN^ROBERT",
+        "birth_date": "19800515",
+        "sex": "M",
+        "address": "123 MAIN ST^^SAN FRANCISCO^CA^94102",
+        "phone": "555-1234",
+        "ssn": "123-45-6789"
+      },
+      "PV1": {
+        "patient_class": "I",
+        "assigned_location": "3N^301^01^UCSF",
+        "attending_doctor": "123456^SMITH^JANE^^^MD",
+        "visit_number": "V123456"
+      }
+    }
+  },
+  "lab_result": {
+    "messageId": "ORU_R01_001",
+    "messageType": "ORU^R01",
+    "description": "Laboratory Result Message",
+    "rawMessage": "MSH|^~\\&|LAB|UCSF|INTERFACE|UCSF|20241011103052||ORU^R01|MSG000002|P|2.5\nPID|1||MRN123456^^^UCSF^MR||DOE^JOHN^ROBERT||19800515|M\nOBR|1|ORD123456|RES789012|2951-2^SODIUM^LN|||20241011080000|20241011083000|||||||20241011083000||123456^JOHNSON^MARY^^^MD||||||||F\nOBX|1|NM|2951-2^SODIUM^LN||142|mmol/L|135-145|N|||F|||20241011090000",
+    "parsed": {
+      "MSH": {
+        "sending_application": "LAB",
+        "sending_facility": "UCSF",
+        "message_type": "ORU^R01",
+        "message_control_id": "MSG000002"
+      },
+      "PID": {
+        "patient_id": "MRN123456",
+        "patient_name": "DOE^JOHN^ROBERT",
+        "birth_date": "19800515"
+      },
+      "OBR": {
+        "order_id": "ORD123456",
+        "result_id": "RES789012",
+        "test_code": "2951-2^SODIUM^LN",
+        "observation_datetime": "20241011080000",
+        "ordering_provider": "123456^JOHNSON^MARY^^^MD"
+      },
+      "OBX": {
+        "value_type": "NM",
+        "observation_id": "2951-2^SODIUM^LN",
+        "value": "142",
+        "units": "mmol/L",
+        "reference_range": "135-145",
+        "abnormal_flag": "N",
+        "result_status": "F"
+      }
+    }
+  },
+  "radiology_report": {
+    "messageId": "ORU_R01_RAD_001",
+    "messageType": "ORU^R01",
+    "description": "Radiology Report",
+    "rawMessage": "MSH|^~\\&|RAD|UCSF|INTERFACE|UCSF|20241010153052||ORU^R01|MSG000003|P|2.5\nPID|1||MRN234567^^^UCSF^MR||SMITH^SARAH^M||19650315|F\nOBR|1|RAD123456|ACC789012|CT CHEST W/CONTRAST|||20241010140000|20241010150000|||||||20241010150000||789012^RODRIGUEZ^EMILY^^^MD||||||||F\nOBX|1|TX|CT^CHEST^LN||RIGHT BREAST MASS MEASURING 2.5 CM||||||F|||20241010151500\nOBX|2|TX|CT^CHEST^LN||TWO IPSILATERAL AXILLARY LYMPH NODES WITH SUSPICIOUS MORPHOLOGY||||||F|||20241010151500\nOBX|3|TX|CT^CHEST^LN||NO DISTANT METASTASES IDENTIFIED||||||F|||20241010151500",
+    "parsed": {
+      "MSH": {
+        "sending_application": "RAD",
+        "sending_facility": "UCSF",
+        "message_type": "ORU^R01"
+      },
+      "PID": {
+        "patient_id": "MRN234567",
+        "patient_name": "SMITH^SARAH^M",
+        "birth_date": "19650315",
+        "sex": "F"
+      },
+      "OBR": {
+        "order_id": "RAD123456",
+        "result_id": "ACC789012",
+        "test_code": "CT CHEST W/CONTRAST"
+      },
+      "OBX_results": [
+        {"finding": "RIGHT BREAST MASS MEASURING 2.5 CM"},
+        {"finding": "TWO IPSILATERAL AXILLARY LYMPH NODES WITH SUSPICIOUS MORPHOLOGY"},
+        {"finding": "NO DISTANT METASTASES IDENTIFIED"}
+      ]
+    }
+  },
+  "cancer_registry": {
+    "messageId": "ADT_A04_CANCER_001",
+    "messageType": "ADT^A04",
+    "description": "Cancer Patient Registration",
+    "rawMessage": "MSH|^~\\&|ONCOLOGY|UCSF|REGISTRY|STATE|20240115090000||ADT^A04|MSG000004|P|2.5\nPID|1||MRN123456^^^UCSF^MR||JOHNSON^SARAH^M||19650315|F|||456 OAK AVE^^OAKLAND^CA^94601||555-9876|||M||54321|123-45-6789\nDG1|1|ICD10|C50.9^BREAST CANCER^ICD10|BREAST CANCER||A\nPR1|1|CPT|19301^MASTECTOMY^CPT|MASTECTOMY|20240120080000",
+    "parsed": {
+      "PID": {
+        "patient_id": "MRN123456",
+        "patient_name": "JOHNSON^SARAH^M",
+        "birth_date": "19650315",
+        "sex": "F",
+        "address": "456 OAK AVE^^OAKLAND^CA^94601",
+        "ssn": "123-45-6789"
+      },
+      "DG1": {
+        "diagnosis_code": "C50.9",
+        "diagnosis_description": "BREAST CANCER",
+        "coding_system": "ICD10"
+      },
+      "PR1": {
+        "procedure_code": "19301",
+        "procedure_description": "MASTECTOMY",
+        "coding_system": "CPT",
+        "procedure_date": "20240120080000"
+      }
+    }
+  },
+  "medication_order": {
+    "messageId": "RDE_O11_001",
+    "messageType": "RDE^O11",
+    "description": "Pharmacy Order Message",
+    "rawMessage": "MSH|^~\\&|PHARMACY|UCSF|INTERFACE|UCSF|20241011110000||RDE^O11|MSG000005|P|2.5\nPID|1||MRN123456^^^UCSF^MR||DOE^JOHN^ROBERT||19800515|M\nORC|NW|RX123456|RX123456|GRP123||||20241011110000\nRXE|1^QD^20241011^20241101|00054-0042-25^TAMOXIFEN 20MG TAB^NDC|20|MG|TAB||||||1||0",
+    "parsed": {
+      "PID": {
+        "patient_id": "MRN123456",
+        "patient_name": "DOE^JOHN^ROBERT"
+      },
+      "ORC": {
+        "order_control": "NW",
+        "placer_order_number": "RX123456",
+        "order_datetime": "20241011110000"
+      },
+      "RXE": {
+        "ndc_code": "00054-0042-25",
+        "drug_name": "TAMOXIFEN 20MG TAB",
+        "quantity": "20",
+        "units": "MG",
+        "dosage_form": "TAB"
+      }
+    }
+  }
+}
+

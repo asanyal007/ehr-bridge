@@ -1,0 +1,7 @@
+patient_first_name,patient_last_name,patient_middle_initial,date_of_birth,medical_record_number,ssn,primary_diagnosis_icd10,diagnosis_date,primary_site_code,histology_code,tumor_grade,tumor_size_mm,lymph_nodes_positive,lymph_nodes_examined,metastasis_at_diagnosis
+Sarah,Johnson,M,1965-03-15,MRN123456,123-45-6789,C50.9,2024-01-15,C50.9,8500,2,25,2,8,false
+Michael,Chen,R,1958-07-22,MRN234567,234-56-7890,C18.9,2024-02-20,C18.9,8140,3,45,5,15,true
+Emily,Williams,A,1972-11-30,MRN345678,345-67-8901,C61,2024-03-10,C61,8140,1,15,0,10,false
+David,Brown,J,1945-05-18,MRN456789,456-78-9012,C34.9,2024-04-05,C34.9,8070,4,55,8,12,true
+Lisa,Martinez,K,1980-09-25,MRN567890,567-89-0123,C50.9,2024-05-12,C50.9,8500,2,18,1,6,false
+

@@ -1,0 +1,73 @@
+{
+  "example_1": {
+    "description": "Healthcare Patient Data Mapping",
+    "source_schema": {
+      "patient_first_name": "string",
+      "patient_last_name": "string",
+      "date_of_birth": "date",
+      "email_address": "string",
+      "phone": "string",
+      "street_address": "string",
+      "city": "string",
+      "state": "string",
+      "zip_code": "string"
+    },
+    "target_schema": {
+      "fullName": "string",
+      "birthDate": "datetime",
+      "contactEmail": "string",
+      "phoneNumber": "string",
+      "address": "string"
+    }
+  },
+  "example_2": {
+    "description": "E-commerce Order Data Mapping",
+    "source_schema": {
+      "cust_name": "string",
+      "order_date": "date",
+      "product_id": "string",
+      "quantity": "integer",
+      "unit_price": "decimal",
+      "shipping_addr": "string"
+    },
+    "target_schema": {
+      "customerName": "string",
+      "purchaseDate": "datetime",
+      "productIdentifier": "string",
+      "orderQuantity": "integer",
+      "itemPrice": "decimal",
+      "shippingAddress": "string"
+    }
+  },
+  "example_3": {
+    "description": "Employee Data Mapping",
+    "source_schema": {
+      "first_name": "string",
+      "last_name": "string",
+      "email": "string",
+      "hire_date": "date",
+      "department": "string",
+      "salary": "decimal"
+    },
+    "target_schema": {
+      "full_name": "string",
+      "contact_email": "string",
+      "employment_start_date": "datetime",
+      "dept_name": "string",
+      "annual_compensation": "decimal"
+    }
+  },
+  "example_4": {
+    "description": "Simple Name Concatenation",
+    "source_schema": {
+      "first_name": "string",
+      "last_name": "string",
+      "email": "string"
+    },
+    "target_schema": {
+      "full_name": "string",
+      "contact_email": "string"
+    }
+  }
+}
+

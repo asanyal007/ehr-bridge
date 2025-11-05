@@ -1,0 +1,46 @@
+# Python Backend Dependencies for AI Data Interoperability Platform
+# Healthcare/EHR/HL7 focused with Sentence-BERT
+
+# Web Framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# Database - SQLite (built-in to Python) and MongoDB
+pymongo==4.6.0
+
+# CORS Support
+fastapi-cors==0.0.6
+
+# JWT Authentication
+pyjwt==2.8.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.6
+
+# Sentence-BERT and Biomedical Models
+sentence-transformers>=2.2.2
+torch>=2.0.0
+transformers>=4.35.0
+
+# BioBERT/ClinicalBERT support
+# These will be downloaded automatically by sentence-transformers
+
+# String Similarity (fallback/supplementary)
+python-Levenshtein==0.23.0
+fuzzywuzzy==0.18.0
+
+# Date/Time Handling
+python-dateutil==2.8.2
+
+# HTTP Client (for testing)
+httpx==0.25.2
+
+# Environment Variables
+python-dotenv==1.0.0
+
+# JSON Schema Validation
+jsonschema==4.20.0
+
+# Google Gemini AI
+google-generativeai==0.3.2

@@ -1,0 +1,22 @@
+patient_id,mrn,first_name,last_name,condition_id,diagnosis_date,diagnosis_code,diagnosis_system,diagnosis_description,onset_date,abatement_date,severity,clinical_status,verification_status,encounter_id,provider_name,department
+P001,MRN-001,James,Anderson,COND-001,2024-01-15,E11.9,ICD10CM,Type 2 diabetes mellitus without complications,2023-06-10,,moderate,active,confirmed,ENC-001,Dr. Sarah Chen,Endocrinology
+P002,MRN-002,Maria,Garcia,COND-002,2024-01-18,I10,ICD10CM,Essential (primary) hypertension,2022-03-15,,mild,active,confirmed,ENC-002,Dr. Robert Kim,Cardiology
+P003,MRN-003,Robert,Johnson,COND-003,2024-01-20,J45.909,ICD10CM,Unspecified asthma uncomplicated,2020-07-22,,moderate,active,confirmed,ENC-003,Dr. Emily Zhang,Pulmonology
+P004,MRN-004,Jennifer,Williams,COND-004,2024-01-22,M79.3,ICD10CM,Panniculitis unspecified,2024-01-10,2024-02-20,mild,resolved,confirmed,ENC-004,Dr. Michael Patel,Rheumatology
+P005,MRN-005,Michael,Brown,COND-005,2024-01-25,F32.9,ICD10CM,Major depressive disorder single episode,2023-09-05,,moderate,active,confirmed,ENC-005,Dr. Lisa Martinez,Psychiatry
+P006,MRN-006,Linda,Davis,COND-006,2024-02-01,E78.5,ICD10CM,Hyperlipidemia unspecified,2022-11-18,,mild,active,confirmed,ENC-006,Dr. David Lee,Internal Medicine
+P007,MRN-007,David,Martinez,COND-007,2024-02-03,K21.9,ICD10CM,Gastro-esophageal reflux disease without esophagitis,2023-04-12,,mild,active,confirmed,ENC-007,Dr. Amanda Johnson,Gastroenterology
+P008,MRN-008,Sarah,Rodriguez,COND-008,2024-02-05,N18.3,ICD10CM,Chronic kidney disease stage 3,2022-08-20,,moderate,active,confirmed,ENC-008,Dr. John Smith,Nephrology
+P009,MRN-009,John,Wilson,COND-009,2024-02-08,I25.10,ICD10CM,Atherosclerotic heart disease of native coronary artery,2021-12-03,,severe,active,confirmed,ENC-009,Dr. Rachel Green,Cardiology
+P010,MRN-010,Patricia,Moore,COND-010,2024-02-10,M06.9,ICD10CM,Rheumatoid arthritis unspecified,2020-05-14,,moderate,active,confirmed,ENC-010,Dr. Thomas Brown,Rheumatology
+P011,MRN-011,Christopher,Taylor,COND-011,2024-02-12,E66.9,ICD10CM,Obesity unspecified,2019-10-22,,moderate,active,confirmed,ENC-011,Dr. Jennifer White,Internal Medicine
+P012,MRN-012,Emily,Anderson,COND-012,2024-02-15,G43.909,ICD10CM,Migraine unspecified not intractable without status migrainosus,2022-02-08,,moderate,active,confirmed,ENC-012,Dr. Kevin Wong,Neurology
+P013,MRN-013,Daniel,Thomas,COND-013,2024-02-17,L40.9,ICD10CM,Psoriasis unspecified,2023-07-19,,mild,active,confirmed,ENC-013,Dr. Sarah Kim,Dermatology
+P014,MRN-014,Jessica,Jackson,COND-014,2024-02-20,F41.9,ICD10CM,Anxiety disorder unspecified,2023-11-05,,moderate,active,confirmed,ENC-014,Dr. Robert Chen,Psychiatry
+P015,MRN-015,Matthew,White,COND-015,2024-02-22,M81.0,ICD10CM,Age-related osteoporosis without current pathological fracture,2022-09-30,,moderate,active,confirmed,ENC-015,Dr. Maria Lopez,Orthopedics
+P016,MRN-016,Ashley,Harris,COND-016,2024-02-25,D50.9,ICD10CM,Iron deficiency anemia unspecified,2024-01-08,,mild,active,confirmed,ENC-016,Dr. James Park,Hematology
+P017,MRN-017,Joshua,Martin,COND-017,2024-02-27,I73.9,ICD10CM,Peripheral vascular disease unspecified,2023-03-25,,moderate,active,confirmed,ENC-017,Dr. Linda Davis,Vascular Surgery
+P018,MRN-018,Amanda,Thompson,COND-018,2024-03-01,E03.9,ICD10CM,Hypothyroidism unspecified,2021-06-15,,mild,active,confirmed,ENC-018,Dr. Michael Nguyen,Endocrinology
+P019,MRN-019,Ryan,Garcia,COND-019,2024-03-03,J44.9,ICD10CM,Chronic obstructive pulmonary disease unspecified,2020-11-08,,severe,active,confirmed,ENC-019,Dr. Elizabeth Lee,Pulmonology
+P020,MRN-020,Stephanie,Martinez,COND-020,2024-03-05,N39.0,ICD10CM,Urinary tract infection site not specified,2024-02-28,2024-03-10,mild,resolved,confirmed,ENC-020,Dr. Daniel Rodriguez,Urology
+

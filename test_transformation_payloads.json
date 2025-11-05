@@ -1,0 +1,435 @@
+{
+  "description": "Complete JSON payloads for testing AI Data Interoperability Platform transformations",
+  "baseUrl": "http://localhost:8000",
+  
+  "1_authentication": {
+    "description": "Get demo authentication token",
+    "method": "POST",
+    "endpoint": "/api/v1/auth/demo-token",
+    "payload": {},
+    "curlCommand": "curl -X POST http://localhost:8000/api/v1/auth/demo-token"
+  },
+  
+  "2_create_job": {
+    "description": "Create a new mapping job with CSV source and FHIR Patient target",
+    "method": "POST",
+    "endpoint": "/api/v1/jobs",
+    "headers": {
+      "Authorization": "Bearer YOUR_TOKEN_HERE",
+      "Content-Type": "application/json"
+    },
+    "payload": {
+      "userId": "demo_user_12345",
+      "sourceSchema": {
+        "PatientFirstName": "string",
+        "PatientLastName": "string",
+        "DateOfBirth": "date",
+        "Gender": "string",
+        "MedicalRecordNumber": "string",
+        "PrimaryDiagnosisICD10": "string",
+        "DiagnosisDate": "date",
+        "TumorSizeMM": "integer",
+        "TumorStageTNM": "string",
+        "TumorGrade": "string",
+        "MetastasisPresent": "string",
+        "LymphNodesPositive": "integer",
+        "LymphNodesExamined": "integer",
+        "TumorSitePrimary": "string",
+        "HistologicalType": "string",
+        "TreatmentPlan": "string"
+      },
+      "targetSchema": {
+        "resourceType": "string",
+        "id": "string",
+        "identifier[0].system": "string",
+        "identifier[0].value": "string",
+        "active": "boolean",
+        "name[0].use": "string",
+        "name[0].family": "string",
+        "name[0].given[0]": "string",
+        "name[0].given[1]": "string",
+        "name[0].prefix[0]": "string",
+        "name[0].suffix[0]": "string",
+        "gender": "string",
+        "birthDate": "date",
+        "address[0].city": "string",
+        "address[0].state": "string",
+        "address[0].postalCode": "string"
+      }
+    },
+    "curlCommand": "curl -X POST http://localhost:8000/api/v1/jobs -H 'Authorization: Bearer TOKEN' -H 'Content-Type: application/json' -d @create_job_payload.json"
+  },
+  
+  "3_gemini_predict_fhir": {
+    "description": "Use Gemini AI to predict FHIR resource type from CSV schema",
+    "method": "POST",
+    "endpoint": "/api/v1/fhir/predict-resource",
+    "headers": {
+      "Authorization": "Bearer YOUR_TOKEN_HERE",
+      "Content-Type": "application/json"
+    },
+    "payload": {
+      "PatientFirstName": "string",
+      "PatientLastName": "string",
+      "DateOfBirth": "date",
+      "Gender": "string",
+      "MedicalRecordNumber": "string",
+      "PrimaryDiagnosisICD10": "string",
+      "DiagnosisDate": "date",
+      "TumorSizeMM": "integer",
+      "TumorStageTNM": "string",
+      "TumorGrade": "string",
+      "MetastasisPresent": "string",
+      "LymphNodesPositive": "integer",
+      "LymphNodesExamined": "integer",
+      "TumorSitePrimary": "string",
+      "HistologicalType": "string",
+      "TreatmentPlan": "string"
+    },
+    "expectedResponse": {
+      "success": true,
+      "predictedResource": "Patient",
+      "confidence": 0.95,
+      "reasoning": "Contains patient demographics including name, DOB, gender",
+      "keyIndicators": ["PatientFirstName", "PatientLastName", "DateOfBirth", "Gender"],
+      "fhirSchema": {},
+      "fhirFieldCount": 30
+    }
+  },
+  
+  "4_analyze_job": {
+    "description": "Trigger AI analysis to generate semantic mappings",
+    "method": "POST",
+    "endpoint": "/api/v1/jobs/{jobId}/analyze",
+    "headers": {
+      "Authorization": "Bearer YOUR_TOKEN_HERE",
+      "Content-Type": "application/json"
+    },
+    "payload": {
+      "userId": "demo_user_12345"
+    },
+    "note": "Replace {jobId} with actual job ID from step 2",
+    "curlCommand": "curl -X POST http://localhost:8000/api/v1/jobs/job_1234567890/analyze -H 'Authorization: Bearer TOKEN' -H 'Content-Type: application/json' -d '{\"userId\":\"demo_user_12345\"}'"
+  },
+  
+  "5_fhir_transform": {
+    "description": "Transform CSV data to FHIR Patient resources",
+    "method": "POST",
+    "endpoint": "/api/v1/fhir/transform?resource_type=Patient",
+    "headers": {
+      "Authorization": "Bearer YOUR_TOKEN_HERE",
+      "Content-Type": "application/json"
+    },
+    "payload": {
+      "mappings": [
+        {
+          "sourceField": "PatientFirstName",
+          "targetField": "name[0].given[0]",
+          "suggestedTransform": "TRIM",
+          "confidenceScore": 0.92
+        },
+        {
+          "sourceField": "PatientLastName",
+          "targetField": "name[0].family",
+          "suggestedTransform": "TRIM",
+          "confidenceScore": 0.92
+        },
+        {
+          "sourceField": "Gender",
+          "targetField": "gender",
+          "suggestedTransform": "DIRECT",
+          "confidenceScore": 1.0
+        },
+        {
+          "sourceField": "DateOfBirth",
+          "targetField": "birthDate",
+          "suggestedTransform": "DIRECT",
+          "confidenceScore": 0.95
+        },
+        {
+          "sourceField": "MedicalRecordNumber",
+          "targetField": "identifier[0].value",
+          "suggestedTransform": "DIRECT",
+          "confidenceScore": 0.88
+        }
+      ],
+      "sampleData": [
+        {
+          "PatientFirstName": "Sarah",
+          "PatientLastName": "Johnson",
+          "DateOfBirth": "1965-03-15",
+          "Gender": "F",
+          "MedicalRecordNumber": "MRN001234",
+          "PrimaryDiagnosisICD10": "C50.9",
+          "DiagnosisDate": "2024-01-15",
+          "TumorSizeMM": 25,
+          "TumorStageTNM": "T2N1M0",
+          "TumorGrade": "Grade 2",
+          "MetastasisPresent": "No",
+          "LymphNodesPositive": 2,
+          "LymphNodesExamined": 8,
+          "TumorSitePrimary": "Breast",
+          "HistologicalType": "Invasive Ductal Carcinoma",
+          "TreatmentPlan": "Surgery + Radiation"
+        },
+        {
+          "PatientFirstName": "Michael",
+          "PatientLastName": "Chen",
+          "DateOfBirth": "1972-08-22",
+          "Gender": "M",
+          "MedicalRecordNumber": "MRN001235",
+          "PrimaryDiagnosisICD10": "C61",
+          "DiagnosisDate": "2024-02-10",
+          "TumorSizeMM": 18,
+          "TumorStageTNM": "T1cN0M0",
+          "TumorGrade": "Grade 1",
+          "MetastasisPresent": "No",
+          "LymphNodesPositive": 0,
+          "LymphNodesExamined": 0,
+          "TumorSitePrimary": "Prostate",
+          "HistologicalType": "Adenocarcinoma",
+          "TreatmentPlan": "Active Surveillance"
+        }
+      ]
+    },
+    "expectedResponse": {
+      "success": true,
+      "fhirResources": [
+        {
+          "resourceType": "Patient",
+          "id": "patient-001",
+          "identifier": [
+            {
+              "value": "MRN001234"
+            }
+          ],
+          "name": [
+            {
+              "use": "official",
+              "family": "Johnson",
+              "given": ["Sarah"]
+            }
+          ],
+          "gender": "F",
+          "birthDate": "1965-03-15"
+        }
+      ],
+      "recordCount": 2
+    }
+  },
+  
+  "6_hl7_to_columnar": {
+    "description": "Transform HL7 v2 message to columnar format",
+    "method": "POST",
+    "endpoint": "/api/v1/hl7/transform",
+    "headers": {
+      "Authorization": "Bearer YOUR_TOKEN_HERE",
+      "Content-Type": "application/json"
+    },
+    "payload": {
+      "hl7Message": "MSH|^~\\&|SENDING_APP|SENDING_FACILITY|RECEIVING_APP|RECEIVING_FACILITY|20240110120000||ADT^A01|MSG00001|P|2.5\rEVN|A01|20240110120000\rPID|1||MRN123456^^^HOSPITAL^MR||DOE^JOHN^A||19800515|M|||123 MAIN ST^^ANYTOWN^CA^12345^USA||(555)555-1234|||S||ACC123456789|123-45-6789\rPV1|1|I|ICU^101^01^MAIN||||DOC123^SMITH^JANE^^^DR|||MED||||1|||DOC123^SMITH^JANE^^^DR|INP|ACC123456789||||||||||||||||||MAIN|||||||20240110120000",
+      "direction": "hl7_to_columnar"
+    },
+    "expectedResponse": {
+      "success": true,
+      "columnarData": {
+        "MessageType": "ADT^A01",
+        "PatientID": "MRN123456",
+        "PatientLastName": "DOE",
+        "PatientFirstName": "JOHN",
+        "DateOfBirth": "19800515",
+        "Gender": "M",
+        "Address": "123 MAIN ST, ANYTOWN, CA 12345"
+      }
+    }
+  },
+  
+  "7_columnar_to_hl7": {
+    "description": "Transform columnar data to HL7 v2 message",
+    "method": "POST",
+    "endpoint": "/api/v1/hl7/transform",
+    "headers": {
+      "Authorization": "Bearer YOUR_TOKEN_HERE",
+      "Content-Type": "application/json"
+    },
+    "payload": {
+      "columnarData": {
+        "PatientID": "MRN789012",
+        "PatientLastName": "SMITH",
+        "PatientFirstName": "JANE",
+        "PatientMiddleInitial": "M",
+        "DateOfBirth": "1990-07-15",
+        "Gender": "F",
+        "AddressStreet": "456 ELM STREET",
+        "AddressCity": "SPRINGFIELD",
+        "AddressState": "IL",
+        "AddressZip": "62701",
+        "PhoneHome": "(217)555-7890",
+        "SSN": "987-65-4321"
+      },
+      "direction": "columnar_to_hl7",
+      "messageType": "ADT^A01"
+    },
+    "expectedResponse": {
+      "success": true,
+      "hl7Message": "MSH|^~\\&|...|PID|1||MRN789012|||SMITH^JANE^M||19900715|F|..."
+    }
+  },
+  
+  "8_lab_results_to_observation": {
+    "description": "Transform lab results CSV to FHIR Observation resources",
+    "method": "POST",
+    "endpoint": "/api/v1/fhir/transform?resource_type=Observation",
+    "headers": {
+      "Authorization": "Bearer YOUR_TOKEN_HERE",
+      "Content-Type": "application/json"
+    },
+    "payload": {
+      "mappings": [
+        {
+          "sourceField": "test_code_loinc",
+          "targetField": "code.coding[0].code",
+          "suggestedTransform": "DIRECT",
+          "confidenceScore": 0.95
+        },
+        {
+          "sourceField": "test_name",
+          "targetField": "code.coding[0].display",
+          "suggestedTransform": "DIRECT",
+          "confidenceScore": 0.90
+        },
+        {
+          "sourceField": "result_value",
+          "targetField": "valueQuantity.value",
+          "suggestedTransform": "DIRECT",
+          "confidenceScore": 0.98
+        },
+        {
+          "sourceField": "result_unit",
+          "targetField": "valueQuantity.unit",
+          "suggestedTransform": "DIRECT",
+          "confidenceScore": 0.98
+        }
+      ],
+      "sampleData": [
+        {
+          "patient_id": "MRN001234",
+          "test_code_loinc": "2339-0",
+          "test_name": "Glucose",
+          "result_value": "95",
+          "result_unit": "mg/dL",
+          "reference_range": "70-100",
+          "abnormal_flag": "N",
+          "performed_datetime": "2024-10-11T08:30:00Z"
+        },
+        {
+          "patient_id": "MRN001234",
+          "test_code_loinc": "2571-8",
+          "test_name": "Triglycerides",
+          "result_value": "145",
+          "result_unit": "mg/dL",
+          "reference_range": "<150",
+          "abnormal_flag": "N",
+          "performed_datetime": "2024-10-11T08:30:00Z"
+        }
+      ]
+    }
+  },
+  
+  "9_diagnosis_to_condition": {
+    "description": "Transform diagnosis data to FHIR Condition resources",
+    "method": "POST",
+    "endpoint": "/api/v1/fhir/transform?resource_type=Condition",
+    "headers": {
+      "Authorization": "Bearer YOUR_TOKEN_HERE",
+      "Content-Type": "application/json"
+    },
+    "payload": {
+      "mappings": [
+        {
+          "sourceField": "diagnosis_code_icd10",
+          "targetField": "code.coding[0].code",
+          "suggestedTransform": "DIRECT",
+          "confidenceScore": 0.98
+        },
+        {
+          "sourceField": "diagnosis_description",
+          "targetField": "code.coding[0].display",
+          "suggestedTransform": "DIRECT",
+          "confidenceScore": 0.95
+        },
+        {
+          "sourceField": "diagnosis_date",
+          "targetField": "onsetDateTime",
+          "suggestedTransform": "DIRECT",
+          "confidenceScore": 0.92
+        },
+        {
+          "sourceField": "clinical_status",
+          "targetField": "clinicalStatus.coding[0].code",
+          "suggestedTransform": "DIRECT",
+          "confidenceScore": 0.88
+        }
+      ],
+      "sampleData": [
+        {
+          "patient_id": "MRN001234",
+          "diagnosis_code_icd10": "E11.9",
+          "diagnosis_description": "Type 2 diabetes mellitus without complications",
+          "diagnosis_date": "2020-05-15",
+          "clinical_status": "active",
+          "severity": "moderate",
+          "body_site": "pancreas"
+        }
+      ]
+    }
+  },
+  
+  "test_sequence": {
+    "description": "Complete end-to-end test sequence",
+    "steps": [
+      "1. Get auth token: POST /api/v1/auth/demo-token",
+      "2. Predict FHIR resource: POST /api/v1/fhir/predict-resource (use payload from #3)",
+      "3. Create job: POST /api/v1/jobs (use payload from #2, update targetSchema with predicted FHIR schema)",
+      "4. Analyze job: POST /api/v1/jobs/{jobId}/analyze (use payload from #4)",
+      "5. Review mappings: GET /api/v1/jobs/{jobId}",
+      "6. Transform to FHIR: POST /api/v1/fhir/transform (use payload from #5)",
+      "7. Approve job: PUT /api/v1/jobs/{jobId}/approve"
+    ]
+  },
+  
+  "curl_examples": {
+    "complete_workflow": [
+      "# Step 1: Get token",
+      "TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/demo-token | jq -r '.token')",
+      "",
+      "# Step 2: Predict FHIR resource",
+      "curl -X POST http://localhost:8000/api/v1/fhir/predict-resource \\",
+      "  -H \"Authorization: Bearer $TOKEN\" \\",
+      "  -H \"Content-Type: application/json\" \\",
+      "  -d '{\"PatientFirstName\":\"string\",\"PatientLastName\":\"string\",\"DateOfBirth\":\"date\",\"Gender\":\"string\"}' \\",
+      "  | jq .",
+      "",
+      "# Step 3: Create job (copy sourceSchema and targetSchema from above)",
+      "JOB_ID=$(curl -s -X POST http://localhost:8000/api/v1/jobs \\",
+      "  -H \"Authorization: Bearer $TOKEN\" \\",
+      "  -H \"Content-Type: application/json\" \\",
+      "  -d @test_transformation_payloads.json | jq -r '.jobId')",
+      "",
+      "# Step 4: Analyze job",
+      "curl -X POST http://localhost:8000/api/v1/jobs/$JOB_ID/analyze \\",
+      "  -H \"Authorization: Bearer $TOKEN\" \\",
+      "  -H \"Content-Type: application/json\" \\",
+      "  -d '{\"userId\":\"demo_user_12345\"}' \\",
+      "  | jq .",
+      "",
+      "# Step 5: Transform to FHIR",
+      "curl -X POST 'http://localhost:8000/api/v1/fhir/transform?resource_type=Patient' \\",
+      "  -H \"Authorization: Bearer $TOKEN\" \\",
+      "  -H \"Content-Type: application/json\" \\",
+      "  -d @fhir_transform_payload.json \\",
+      "  | jq ."
+    ]
+  }
+}
+

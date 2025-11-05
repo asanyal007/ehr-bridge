@@ -1,0 +1,205 @@
+{
+  "local_ehr_to_cancer_registry": {
+    "description": "Map local hospital EHR to national cancer registry",
+    "use_case": "Submitting cancer cases to state/national tumor registries",
+    "source_schema": {
+      "patient_first_name": "string",
+      "patient_last_name": "string",
+      "patient_middle_initial": "string",
+      "date_of_birth": "date",
+      "medical_record_number": "string",
+      "ssn": "string",
+      "primary_diagnosis_icd10": "string",
+      "diagnosis_date": "date",
+      "primary_site_code": "string",
+      "histology_code": "string",
+      "grade": "string",
+      "tumor_size_mm": "integer",
+      "lymph_nodes_positive": "integer",
+      "lymph_nodes_examined": "integer",
+      "metastasis_at_dx": "boolean"
+    },
+    "target_schema": {
+      "patientFullName": "string",
+      "birthDate": "datetime",
+      "mrn": "string",
+      "socialSecurityNumber": "string",
+      "cancerDiagnosisCode": "string",
+      "dateOfDiagnosis": "datetime",
+      "primaryTumorSite": "string",
+      "histologicType": "string",
+      "tumorGrade": "string",
+      "tumorSizeMillimeters": "integer",
+      "regionalNodesPositive": "integer",
+      "regionalNodesExamined": "integer",
+      "distantMetastasis": "boolean"
+    }
+  },
+  "hl7_v2_to_fhir": {
+    "description": "Transform HL7 v2 messages to FHIR resources",
+    "use_case": "Modernizing legacy HL7 v2 integrations to FHIR",
+    "source_schema": {
+      "PID-5.1": "string",
+      "PID-5.2": "string",
+      "PID-7": "date",
+      "PID-18": "string",
+      "OBR-4.1": "string",
+      "OBR-7": "datetime",
+      "OBX-3.1": "string",
+      "OBX-5": "string",
+      "OBX-6.1": "string",
+      "OBX-14": "datetime"
+    },
+    "target_schema": {
+      "Patient.name.family": "string",
+      "Patient.name.given": "string",
+      "Patient.birthDate": "date",
+      "Patient.identifier.value": "string",
+      "DiagnosticReport.code.coding.code": "string",
+      "DiagnosticReport.effectiveDateTime": "datetime",
+      "Observation.code.coding.code": "string",
+      "Observation.valueString": "string",
+      "Observation.valueQuantity.unit": "string",
+      "Observation.issued": "datetime"
+    }
+  },
+  "lab_results_integration": {
+    "description": "Integrate laboratory results from external lab to EHR",
+    "use_case": "Importing reference lab results into hospital information system",
+    "source_schema": {
+      "patient_id": "string",
+      "specimen_id": "string",
+      "test_code_loinc": "string",
+      "test_name": "string",
+      "result_value": "string",
+      "result_unit": "string",
+      "reference_range": "string",
+      "abnormal_flag": "string",
+      "result_status": "string",
+      "performed_datetime": "datetime",
+      "reported_datetime": "datetime"
+    },
+    "target_schema": {
+      "patientMRN": "string",
+      "specimenNumber": "string",
+      "loincCode": "string",
+      "testDescription": "string",
+      "observationValue": "string",
+      "unitOfMeasure": "string",
+      "normalRange": "string",
+      "abnormalIndicator": "string",
+      "resultStatus": "string",
+      "collectionTimestamp": "datetime",
+      "resultTimestamp": "datetime"
+    }
+  },
+  "medication_reconciliation": {
+    "description": "Reconcile medications from pharmacy system to EHR",
+    "use_case": "Medication history integration during patient admission",
+    "source_schema": {
+      "rx_number": "string",
+      "patient_id": "string",
+      "drug_name": "string",
+      "ndc_code": "string",
+      "drug_strength": "string",
+      "dosage_form": "string",
+      "directions": "string",
+      "quantity_dispensed": "integer",
+      "days_supply": "integer",
+      "refills_remaining": "integer",
+      "prescriber_npi": "string",
+      "fill_date": "date",
+      "last_refill_date": "date"
+    },
+    "target_schema": {
+      "prescriptionId": "string",
+      "medicalRecordNumber": "string",
+      "medicationName": "string",
+      "nationalDrugCode": "string",
+      "strengthDescription": "string",
+      "medicationForm": "string",
+      "administrationInstructions": "string",
+      "quantityDispensed": "integer",
+      "daySupply": "integer",
+      "refillsRemaining": "integer",
+      "prescriberNPI": "string",
+      "dispensedDate": "datetime",
+      "lastRefillDate": "datetime"
+    }
+  },
+  "clinical_trial_enrollment": {
+    "description": "Map patient data for clinical trial screening",
+    "use_case": "Identifying eligible patients for oncology clinical trials",
+    "source_schema": {
+      "patient_mrn": "string",
+      "age_years": "integer",
+      "gender": "string",
+      "race": "string",
+      "ethnicity": "string",
+      "cancer_type_icd10": "string",
+      "cancer_stage": "string",
+      "ecog_performance_status": "integer",
+      "prior_treatments": "string",
+      "current_medications": "string",
+      "comorbidities_icd10": "string",
+      "lab_wbc": "decimal",
+      "lab_anc": "decimal",
+      "lab_platelets": "decimal",
+      "lab_hemoglobin": "decimal",
+      "lab_creatinine": "decimal",
+      "lab_bilirubin": "decimal"
+    },
+    "target_schema": {
+      "subjectId": "string",
+      "ageInYears": "integer",
+      "sex": "string",
+      "raceCategory": "string",
+      "ethnicGroup": "string",
+      "primaryDiagnosisCode": "string",
+      "diseaseStage": "string",
+      "performanceStatus": "integer",
+      "priorTherapies": "string",
+      "concomitantMedications": "string",
+      "medicalHistory": "string",
+      "whiteBloodCellCount": "decimal",
+      "absoluteNeutrophilCount": "decimal",
+      "plateletCount": "decimal",
+      "hemoglobinLevel": "decimal",
+      "serumCreatinine": "decimal",
+      "totalBilirubin": "decimal"
+    }
+  },
+  "radiology_report_structured": {
+    "description": "Extract structured data from radiology reports",
+    "use_case": "Converting free-text radiology reports to structured oncology data",
+    "source_schema": {
+      "accession_number": "string",
+      "patient_mrn": "string",
+      "study_type": "string",
+      "study_date": "datetime",
+      "findings_primary_mass": "string",
+      "mass_size_cm": "decimal",
+      "mass_location": "string",
+      "lymph_nodes_involved": "boolean",
+      "lymph_node_count": "integer",
+      "metastatic_sites": "string",
+      "impression": "string",
+      "radiologist_name": "string"
+    },
+    "target_schema": {
+      "imagingStudyId": "string",
+      "medicalRecordNumber": "string",
+      "modalityType": "string",
+      "acquisitionDateTime": "datetime",
+      "primaryFindingDescription": "string",
+      "lesionSizeCentimeters": "decimal",
+      "anatomicLocation": "string",
+      "lymphNodeInvolvement": "boolean",
+      "numberOfNodesInvolved": "integer",
+      "distantMetastases": "string",
+      "diagnosticImpression": "string",
+      "interpretingPhysician": "string"
+    }
+  }
+}
+

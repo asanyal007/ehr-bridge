@@ -1,0 +1,34 @@
+# Simplified requirements for Python 3.13 compatibility
+# Core web framework
+fastapi
+uvicorn[standard]
+
+# Will install compatible versions
+pydantic
+pydantic-settings
+
+# Auth
+pyjwt
+passlib
+python-multipart
+
+# AI/ML - using latest compatible versions
+sentence-transformers
+torch
+transformers
+
+# Basic string similarity
+fuzzywuzzy
+
+# MongoDB for HL7 staging
+pymongo
+
+# Google Gemini AI
+google-generativeai
+
+# Utilities
+python-dateutil
+httpx
+python-dotenv
+jsonschema
+
