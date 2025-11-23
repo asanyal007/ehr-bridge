@@ -27,16 +27,8 @@ except ImportError:
 class BiomedicalAIEngine:
     """
     Enhanced AI Engine with GPT-OSS for Healthcare/EHR/HL7 Schema Mapping
-    
-    **Hybrid Mode** (Recommended):
-    - SENTENCE-BERT for embeddings (fast, accurate)
-    - GPT-OSS for reasoning (explanations, context)
-    
-    **GPT-OSS Only Mode**:
-    - GPT-OSS for both embeddings and reasoning (slower)
-    
-    **SBERT Only Mode** (Fallback):
-    - SENTENCE-BERT only (no reasoning)
+    - Primary: GPT-OSS (openai/gpt-oss-20b) for semantic similarity + reasoning
+    - Fallback: SENTENCE-BERT for semantic similarity only
     """
     
     def __init__(self, use_gpt_oss: bool = True, sbert_model_name: str = None):
@@ -44,67 +36,44 @@ class BiomedicalAIEngine:
         Initialize the biomedical AI engine
         
         Args:
-            use_gpt_oss: Use GPT-OSS for reasoning (default: True)
-            sbert_model_name: SENTENCE-BERT model for embeddings
+            use_gpt_oss: Use GPT-OSS if available (default: True)
+            sbert_model_name: SENTENCE-BERT model for fallback
         """
-        # Check if hybrid mode (SBERT embeddings + GPT-OSS reasoning)
-        self.use_hybrid = os.getenv("USE_SBERT_EMBEDDINGS", "true").lower() == "true" and SBERT_AVAILABLE
-        
         self.use_gpt_oss = use_gpt_oss and GPT_OSS_AVAILABLE
         self.gpt_oss_client = None
         self.sbert_model = None
         
-        # Initialize SENTENCE-BERT for embeddings (hybrid or fallback mode)
-        if self.use_hybrid or not self.use_gpt_oss:
-            if SBERT_AVAILABLE:
-                self.model_name = sbert_model_name or "sentence-transformers/all-MiniLM-L6-v2"
-                print(f"[OK] Loading SENTENCE-BERT for embeddings: {self.model_name}")
-                
-                try:
-                    self.sbert_model = SentenceTransformer(self.model_name)
-                    print("[OK] SENTENCE-BERT loaded successfully")
-                except Exception as e:
-                    print(f"[WARNING] Failed to load SENTENCE-BERT: {e}")
-                    if not self.use_gpt_oss:
-                        raise RuntimeError("Neither GPT-OSS nor SENTENCE-BERT is available")
-        
-        # Initialize GPT-OSS for reasoning (hybrid or GPT-OSS only mode)
+        # Try to initialize GPT-OSS first
         if self.use_gpt_oss:
             try:
                 self.gpt_oss_client = get_gpt_oss_client()
                 if self.gpt_oss_client.is_available():
-                    if self.use_hybrid and self.sbert_model:
-                        print("[OK] Biomedical AI Engine in HYBRID mode:")
-                        print("    - SENTENCE-BERT for embeddings (fast)")
-                        print("    - GPT-OSS for reasoning (accurate)")
-                        self.mode = "hybrid"
-                    else:
-                        print("[OK] Biomedical AI Engine using GPT-OSS")
-                        self.mode = "gpt_oss"
+                    print("[OK] Biomedical AI Engine using GPT-OSS for enhanced reasoning")
+                    self.mode = "gpt_oss"
                 else:
-                    print("[WARNING] GPT-OSS server not available")
+                    print("[WARNING] GPT-OSS server not available, falling back to SENTENCE-BERT")
                     self.gpt_oss_client = None
                     self.use_gpt_oss = False
-                    if self.sbert_model:
-                        self.mode = "sbert"
-                    else:
-                        raise RuntimeError("No AI engine available")
             except Exception as e:
                 print(f"[WARNING] GPT-OSS initialization failed: {e}")
                 self.gpt_oss_client = None
                 self.use_gpt_oss = False
-                if self.sbert_model:
-                    self.mode = "sbert"
-                else:
-                    raise RuntimeError("No AI engine available")
-        elif self.sbert_model:
-            print("[OK] Biomedical AI Engine using SENTENCE-BERT only")
-            self.mode = "sbert"
-        else:
-            raise RuntimeError("No AI engine available")
+        
+        # Fall back to SENTENCE-BERT if GPT-OSS is not available
+        if not self.use_gpt_oss and SBERT_AVAILABLE:
+            self.model_name = sbert_model_name or "sentence-transformers/all-MiniLM-L6-v2"
+            print(f"[OK] Loading SENTENCE-BERT model: {self.model_name}")
+            
+            try:
+                self.sbert_model = SentenceTransformer(self.model_name)
+                print("[OK] SENTENCE-BERT model loaded successfully")
+                self.mode = "sbert"
+            except Exception as e:
+                print(f"[ERROR] Failed to load SENTENCE-BERT: {e}")
+                raise RuntimeError("Neither GPT-OSS nor SENTENCE-BERT is available")
         
         if not self.gpt_oss_client and not self.sbert_model:
-            raise RuntimeError("No embedding model available")
+            raise RuntimeError("No embedding model available (GPT-OSS or SENTENCE-BERT)")
         
         # Clinical terminology patterns for enhanced matching
         self.clinical_patterns = {
@@ -131,154 +100,19 @@ class BiomedicalAIEngine:
         include_reasoning: bool = True
     ) -> List[FieldMapping]:
         """
-        Analyze source and target schemas
-        
-        Hybrid Mode: SBERT embeddings + GPT-OSS reasoning
-        GPT-OSS Mode: GPT-OSS embeddings + reasoning
-        SBERT Mode: SBERT embeddings only
+        Analyze source and target schemas using GPT-OSS or SENTENCE-BERT
         
         Args:
             source_schema: Dictionary of source field names to types
             target_schema: Dictionary of target field names to types
-            include_reasoning: Include GPT-OSS reasoning (only if GPT-OSS available)
+            include_reasoning: Include GPT-OSS reasoning (only if GPT-OSS mode)
             
         Returns:
             List of suggested field mappings with confidence scores and reasoning
         """
-        if self.mode == "hybrid":
-            return self._analyze_hybrid(source_schema, target_schema, include_reasoning)
-        elif self.mode == "gpt_oss":
+        if self.mode == "gpt_oss":
             return self._analyze_with_gpt_oss(source_schema, target_schema, include_reasoning)
         else:
-            return self._analyze_with_sbert(source_schema, target_schema)
-    
-    def _analyze_hybrid(
-        self,
-        source_schema: Dict[str, str],
-        target_schema: Dict[str, str],
-        include_reasoning: bool = True
-    ) -> List[FieldMapping]:
-        """
-        Hybrid mode: SENTENCE-BERT embeddings + GPT-OSS reasoning
-        
-        This is the RECOMMENDED mode:
-        - Fast embeddings from SBERT
-        - Rich explanations from GPT-OSS
-        """
-        try:
-            mappings = []
-            
-            source_fields = list(source_schema.keys())
-            target_fields = list(target_schema.keys())
-            
-            print(f"[HYBRID] Analyzing {len(source_fields)} source → {len(target_fields)} target fields")
-            print("[HYBRID] Using SBERT for embeddings + GPT-OSS for reasoning")
-            
-            # Use SBERT for fast embedding generation
-            source_texts = [
-                self._enhance_field_description(field, source_schema[field])
-                for field in source_fields
-            ]
-            target_texts = [
-                self._enhance_field_description(field, target_schema[field])
-                for field in target_fields
-            ]
-            
-            print(f"[HYBRID] Generating SBERT embeddings...")
-            source_embeddings = self.sbert_model.encode(source_texts, convert_to_tensor=True)
-            target_embeddings = self.sbert_model.encode(target_texts, convert_to_tensor=True)
-            
-            similarity_matrix = util.cos_sim(source_embeddings, target_embeddings)
-            similarity_matrix = similarity_matrix.cpu().numpy()
-            
-            mapped_targets = set()
-            
-            print(f"[HYBRID] Calculating similarities and generating mappings...")
-            for i, source_field in enumerate(source_fields):
-                try:
-                    similarities = similarity_matrix[i]
-                    best_idx = np.argmax(similarities)
-                    best_score = float(similarities[best_idx])
-                    target_field = target_fields[best_idx]
-                    
-                    if best_score > 0.3 and target_field not in mapped_targets:
-                        # Get GPT-OSS explanation for uncertain mappings
-                        explanation = None
-                        if include_reasoning and self.gpt_oss_client and best_score < 0.9:
-                            try:
-                                print(f"[HYBRID] Getting GPT-OSS explanation for {source_field} → {target_field}")
-                                explanation = self.gpt_oss_client.explain_mapping(
-                                    source_field=source_field,
-                                    target_field=target_field,
-                                    source_type=source_schema[source_field],
-                                    target_type=target_schema[target_field]
-                                )
-                            except Exception as e:
-                                print(f"[WARNING] GPT-OSS explanation failed for {source_field}→{target_field}: {e}")
-                                import traceback
-                                traceback.print_exc()
-                        
-                        transform = self._suggest_transform(
-                            source_field,
-                            target_field,
-                            source_schema[source_field],
-                            target_schema[target_field]
-                        )
-                        
-                        # Use explanation confidence if available, otherwise use similarity score
-                        confidence = best_score
-                        if explanation:
-                            try:
-                                confidence = float(explanation.confidence)
-                            except (AttributeError, ValueError, TypeError):
-                                pass  # Use best_score if explanation.confidence is invalid
-                        
-                        mapping = FieldMapping(
-                            sourceField=source_field,
-                            targetField=target_field,
-                            confidenceScore=round(confidence, 2),
-                            suggestedTransform=transform,
-                            transformParams=self._get_transform_params(source_field, target_field, transform)
-                        )
-                        
-                        # Add GPT-OSS reasoning (safely)
-                        if explanation:
-                            try:
-                                mapping.gpt_oss_reasoning = explanation.reasoning if hasattr(explanation, 'reasoning') else None
-                                mapping.gpt_oss_clinical_context = explanation.clinical_context if hasattr(explanation, 'clinical_context') else None
-                                mapping.gpt_oss_type_compatible = explanation.type_compatibility if hasattr(explanation, 'type_compatibility') else None
-                            except Exception as e:
-                                print(f"[WARNING] Failed to add GPT-OSS attributes: {e}")
-                        
-                        mappings.append(mapping)
-                        mapped_targets.add(target_field)
-                except Exception as e:
-                    print(f"[ERROR] Failed to process mapping for {source_field}: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    continue  # Skip this mapping and continue
-            
-            # Handle special patterns
-            try:
-                special_mappings = self._detect_special_patterns(source_schema, target_schema)
-                for mapping in special_mappings:
-                    if mapping.targetField not in mapped_targets:
-                        mappings.append(mapping)
-                        mapped_targets.add(mapping.targetField)
-            except Exception as e:
-                print(f"[WARNING] Special pattern detection failed: {e}")
-            
-            mappings.sort(key=lambda x: x.confidenceScore, reverse=True)
-            
-            print(f"[OK] Generated {len(mappings)} mappings (HYBRID mode: SBERT + GPT-OSS)")
-            return mappings
-            
-        except Exception as e:
-            print(f"[ERROR] Hybrid analysis failed: {e}")
-            import traceback
-            traceback.print_exc()
-            # Fallback to SBERT-only mode
-            print("[FALLBACK] Attempting SBERT-only analysis...")
             return self._analyze_with_sbert(source_schema, target_schema)
     
     def _analyze_with_gpt_oss(
