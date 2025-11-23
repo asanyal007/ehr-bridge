@@ -5,7 +5,7 @@ import FHIRChatbot from './FHIRChatbot';
 import ConceptReviewPanel from './ConceptReviewPanel';
 
 // API base URL
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8002';
 
 /**
  * Main Application Component
@@ -72,6 +72,7 @@ function App() {
   const [loadingStartTime, setLoadingStartTime] = useState(null);
   const [showLoadingCancel, setShowLoadingCancel] = useState(false);
   const [cancelTokenSource, setCancelTokenSource] = useState(null);
+  const cancelTokenRef = useRef(null); // Use ref to avoid dependency issues
 
   // Records modal state
   const [showRecordsModal, setShowRecordsModal] = useState(false);
@@ -470,24 +471,14 @@ function App() {
 
   /**
    * Fetch jobs on mount and when auth is ready
-   * Skip auto-refresh when modals are open or on viewer pages to prevent closing them
+   * Auto-refresh completely removed - users must manually refresh to update
    */
   useEffect(() => {
     if (isAuthReady) {
       fetchJobs();
-      // Refresh jobs every 5 seconds (but not when modals are open or on viewer pages)
-      const interval = setInterval(() => {
-        // Don't auto-refresh if any modal is open or on viewer pages
-        const isModalOpen = showRecordsModal || showFailedModal || showDataModel || showIngestionModal;
-        const isOnViewerPage = currentView === 'fhirviewer' || currentView === 'hl7viewer' || currentView === 'omopviewer' || currentView === 'chatbot' || currentView === 'ingestion';
-        
-        if (!isModalOpen && !isOnViewerPage) {
-          fetchJobs();
-        }
-      }, 5000);
-      return () => clearInterval(interval);
+      // Auto-refresh disabled - use manual refresh buttons instead for better performance
     }
-  }, [isAuthReady, token, showRecordsModal, showFailedModal, showDataModel, showIngestionModal, currentView]);
+  }, [isAuthReady, token]);
 
   /**
    * Fetch OMOP-compatible jobs when checkbox is enabled
@@ -1582,12 +1573,13 @@ function App() {
       console.log('🔄 Fetching ingestion jobs...');
       
       // Cancel any existing request
-      if (cancelTokenSource) {
-        cancelTokenSource.cancel('New request started');
+      if (cancelTokenRef.current) {
+        cancelTokenRef.current.cancel('New request started');
       }
       
       // Create new cancel token
       const source = axios.CancelToken.source();
+      cancelTokenRef.current = source;
       setCancelTokenSource(source);
       
       setIsIngestionListLoading(true);
@@ -1646,17 +1638,19 @@ function App() {
       setIsIngestionListLoading(false);
       setLoadingStartTime(null);
       setShowLoadingCancel(false);
+      cancelTokenRef.current = null;
       setCancelTokenSource(null);
     }
-  }, [token, showToast, API_BASE_URL, cancelTokenSource]);
+  }, [token, showToast, API_BASE_URL]);
 
   // Function to manually cancel loading
   const cancelLoading = useCallback(() => {
     console.log('🛑 User cancelled loading');
     
-    // Cancel the actual request
-    if (cancelTokenSource) {
-      cancelTokenSource.cancel('User cancelled');
+    // Cancel the actual request using the ref
+    if (cancelTokenRef.current) {
+      cancelTokenRef.current.cancel('User cancelled');
+      cancelTokenRef.current = null;
     }
     
     setIsIngestionListLoading(false);
@@ -1664,23 +1658,25 @@ function App() {
     setShowLoadingCancel(false);
     setCancelTokenSource(null);
     showToast('Loading cancelled', 'info');
-  }, [cancelTokenSource]);
+  }, [showToast]);
 
   useEffect(() => {
     if (currentView === 'ingestion' && token) {
       fetchIngestionJobs();
-      // Removed auto-refresh to prevent constant loading state
+      // Auto-refresh completely removed - ONLY manual refresh via button
     }
     
     // Cleanup function to handle component unmount
     return () => {
       // Cancel any pending requests when component unmounts or view changes
-      if (cancelTokenSource) {
-        cancelTokenSource.cancel('Component unmounting or view changing');
-        setCancelTokenSource(null);
+      if (cancelTokenRef.current) {
+        cancelTokenRef.current.cancel('Component unmounting or view changing');
+        cancelTokenRef.current = null;
       }
+      setCancelTokenSource(null);
     };
-  }, [currentView, token, fetchIngestionJobs, cancelTokenSource]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentView, token]); // Removed fetchIngestionJobs to prevent infinite loop
 
   const startIngestionJob = async (jobIdParam = null) => {
     const targetId = jobIdParam || ingestJobId;
@@ -1726,20 +1722,8 @@ function App() {
     }
   };
 
-  // Poll ingestion status every 2s when running
-  useEffect(() => {
-    if (!ingestJobId || ingestStatus !== 'RUNNING') return;
-    const iv = setInterval(async () => {
-      try {
-        const resp = await axios.get(`${API_BASE_URL}/api/v1/ingestion/jobs/${ingestJobId}`, { headers: authHeaders });
-        setIngestStatus(resp.data.job_status?.status || ingestStatus);
-        setIngestMetrics(resp.data.job_status?.metrics || ingestMetrics);
-      } catch (e) {
-        // ignore transient errors
-      }
-    }, 2000);
-    return () => clearInterval(iv);
-  }, [ingestJobId, ingestStatus, token]);
+  // Auto-polling completely removed - use manual refresh button only
+  // Users can click the Refresh button to update job status manually
 
   const openRecordsModal = async (jobId) => {
     setRecordsModalJobId(jobId);
@@ -3496,10 +3480,16 @@ function App() {
             </div>
 
             <div className="bg-white rounded-lg shadow-md p-4 mb-4 flex justify-between items-center">
-              <p className="text-sm text-gray-600">Monitor and control all streaming ingestion pipelines.</p>
+              <p className="text-sm text-gray-600">Monitor and control all streaming ingestion pipelines. Click Refresh to update status.</p>
               <div className="space-x-2">
                 <button onClick={() => setShowIngestionModal(true)} className="px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm">➕ Create Ingestion Job</button>
-                <button onClick={fetchIngestionJobs} className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm">Refresh</button>
+                <button 
+                  onClick={fetchIngestionJobs} 
+                  disabled={isIngestionListLoading}
+                  className="px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  🔄 Refresh
+                </button>
               </div>
             </div>
 

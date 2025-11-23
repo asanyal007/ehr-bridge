@@ -4,8 +4,18 @@ Healthcare/EHR/HL7 focused with Sentence-BERT semantic matching
 SQLite database, JWT authentication, containerized deployment
 """
 import os
+import sys
 from typing import List, Optional, Dict, Any
 from datetime import datetime
+
+# Configure UTF-8 encoding for Windows
+if sys.platform == "win32":
+    try:
+        import codecs
+        sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'ignore')
+        sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'ignore')
+    except Exception:
+        pass  # Ignore if already configured
 from fastapi import FastAPI, HTTPException, Query, Depends, UploadFile, File, Body
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -100,10 +110,10 @@ class LoginResponse(BaseModel):
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on startup"""
-    print("🚀 Starting AI Data Interoperability Platform")
-    print("📊 Initializing SQLite database...")
+    print("[STARTUP] Starting AI Data Interoperability Platform")
+    print("[STARTUP] Initializing SQLite database...")
     # Database is already initialized in get_db_manager()
-    print("✅ Database ready")
+    print("[OK] Database ready")
 
 
 # Root endpoint removed - now serves frontend via catch-all route at the end
@@ -750,7 +760,7 @@ async def omop_predict_table(schema: Dict[str, str] = Body(...), job_id: str = B
                     ]
                 }
         except Exception as e:
-            print(f"⚠️  Could not check job data: {e}")
+            print(f"[WARNING] Could not check job data: {e}")
             # Fall through to schema-based prediction
     
     # Fallback to schema-based prediction
@@ -1193,7 +1203,7 @@ async def normalize_values(
                     
                     # If no records with job_id, try without job_id filter (get any available data)
                     if not records:
-                        print(f"⚠️  No records found for job_id={job_id} in {fhir_coll_name}, trying latest available data...")
+                        print(f"[WARNING] No records found for job_id={job_id} in {fhir_coll_name}, trying latest available data...")
                         records = list(db_mongo[fhir_coll_name].find({}).sort('_id', -1).limit(20))
                     
                     for record in records:
@@ -1206,9 +1216,9 @@ async def normalize_values(
                     
                     extracted_values = extracted_values[:15]
                     if extracted_values:
-                        print(f"✅ Extracted {len(extracted_values)} codes from {fhir_coll_name}")
+                        print(f"[OK] Extracted {len(extracted_values)} codes from {fhir_coll_name}")
                 except Exception as e:
-                    print(f"⚠️  Could not extract values from FHIR collection: {e}")
+                    print(f"[WARNING] Could not extract values from FHIR collection: {e}")
             
             # PRIORITY 2: Try staging collection if FHIR didn't work
             if not extracted_values:
@@ -1245,15 +1255,15 @@ async def normalize_values(
                     
                     extracted_values = extracted_values[:15]
                     if extracted_values:
-                        print(f"✅ Extracted {len(extracted_values)} values from staging collection")
+                        print(f"[OK] Extracted {len(extracted_values)} values from staging collection")
                     
                 except Exception as e:
-                    print(f"⚠️  Could not extract values from staging: {e}")
+                    print(f"[WARNING] Could not extract values from staging: {e}")
             
             # Set values or return error
             if extracted_values:
                 values = extracted_values
-                print(f"✅ Using {len(values)} real values for concept normalization")
+                print(f"[OK] Using {len(values)} real values for concept normalization")
             else:
                 # NO SYNTHETIC DATA! Return empty if no real data found
                 values = []
@@ -2170,9 +2180,22 @@ async def control_ingestion_job(
 async def list_ingestion_jobs(current_user: TokenData = Depends(get_current_user)):
     try:
         engine = get_ingestion_engine()
-        return {"success": True, "jobs": engine.list_jobs()}
+        jobs_list = engine.list_jobs()
+        return {"success": True, "jobs": jobs_list}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to list jobs: {str(e)}")
+        # Handle encoding errors on Windows - avoid string conversion of exception
+        import traceback
+        try:
+            # Try to log the error safely
+            error_type = type(e).__name__
+            # Get ASCII-safe representation of the error
+            error_repr = ascii(e)
+            print(f"[ERROR] Exception: {error_type}")
+            print(f"[ERROR] Details: {error_repr}")
+        except:
+            pass
+        # Return only the exception type to avoid encoding issues
+        raise HTTPException(status_code=500, detail=f"Failed to list jobs. Error type: {type(e).__name__}")
 
 
 @app.get("/api/v1/ingestion/jobs/{job_id}")
@@ -2204,17 +2227,33 @@ async def get_ingested_records(
     """Return recent ingested records for a given job id (MongoDB target only)."""
     try:
         from pymongo import MongoClient
+        
+        # Try to get job config from engine, but use defaults if job not found
         engine = get_ingestion_engine()
-        status = engine.get_job_status(job_id)
-        dest = status.get('destination_connector', {})
-        if dest.get('connector_type') != 'mongodb':
-            return {"success": True, "records": [], "message": "Destination is not MongoDB"}
-        uri = dest.get('config', {}).get('uri', 'mongodb://localhost:27017')
-        db_name = dest.get('config', {}).get('database', 'ehr')
-        coll_name = dest.get('config', {}).get('collection', 'staging')
-        client = MongoClient(uri)
+        uri = 'mongodb://localhost:27017'
+        db_name = 'ehr'
+        coll_name = 'staging'
+        
+        try:
+            status = engine.get_job_status(job_id)
+            dest = status.get('destination_connector', {})
+            if dest.get('connector_type') and dest.get('connector_type') != 'mongodb':
+                return {"success": True, "records": [], "message": "Destination is not MongoDB"}
+            # Get config from job if available
+            uri = dest.get('config', {}).get('uri', uri)
+            db_name = dest.get('config', {}).get('database', db_name)
+            coll_name = dest.get('config', {}).get('collection', coll_name)
+        except (ValueError, KeyError):
+            # Job not found in engine (may have been from before restart)
+            # Fall back to default MongoDB connection
+            print(f"[INFO] Job {job_id} not found in engine, using default MongoDB config")
+        
+        # Query MongoDB directly
+        client = MongoClient(uri, serverSelectionTimeoutMS=5000)
         coll = client[db_name][coll_name]
         docs = list(coll.find({"job_id": job_id}).sort("ingested_at", -1).limit(int(limit)))
+        client.close()
+        
         # serialize ObjectId and datetime
         def ser(d):
             d = dict(d)
@@ -2224,6 +2263,7 @@ async def get_ingested_records(
             return d
         return {"success": True, "records": [ser(x) for x in docs]}
     except Exception as e:
+        print(f"[ERROR] Failed to load records for job {job_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to load records: {str(e)}")
 
 
@@ -2236,18 +2276,36 @@ async def get_failed_records(
     """Return recent failed (DLQ) records for a given job id (MongoDB target only)."""
     try:
         from pymongo import MongoClient
+        
+        # Try to get job config from engine, but use defaults if job not found
         engine = get_ingestion_engine()
-        status = engine.get_job_status(job_id)
-        dest = status.get('destination_connector', {})
-        if dest.get('connector_type') != 'mongodb':
-            return {"success": True, "records": [], "message": "Destination is not MongoDB"}
-        uri = dest.get('config', {}).get('uri', 'mongodb://localhost:27017')
-        db_name = dest.get('config', {}).get('database', 'ehr')
-        base_coll = dest.get('config', {}).get('collection', 'staging')
+        uri = 'mongodb://localhost:27017'
+        db_name = 'ehr'
+        base_coll = 'staging'
+        
+        try:
+            status = engine.get_job_status(job_id)
+            dest = status.get('destination_connector', {})
+            if dest.get('connector_type') and dest.get('connector_type') != 'mongodb':
+                return {"success": True, "records": [], "message": "Destination is not MongoDB"}
+            # Get config from job if available
+            uri = dest.get('config', {}).get('uri', uri)
+            db_name = dest.get('config', {}).get('database', db_name)
+            base_coll = dest.get('config', {}).get('collection', base_coll)
+        except (ValueError, KeyError):
+            # Job not found in engine (may have been from before restart)
+            # Fall back to default MongoDB connection
+            print(f"[INFO] Job {job_id} not found in engine, using default MongoDB config for failed records")
+        
         dlq_coll = f"{base_coll}_dlq"
-        client = MongoClient(uri)
+        
+        # Query MongoDB directly
+        client = MongoClient(uri, serverSelectionTimeoutMS=5000)
         coll = client[db_name][dlq_coll]
         docs = list(coll.find({"job_id": job_id}).sort("failed_at", -1).limit(int(limit)))
+        client.close()
+        
+        # serialize ObjectId and datetime
         def ser(d):
             d = dict(d)
             d.pop('_id', None)
@@ -2256,6 +2314,7 @@ async def get_failed_records(
             return d
         return {"success": True, "records": [ser(x) for x in docs]}
     except Exception as e:
+        print(f"[ERROR] Failed to load failed records for job {job_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to load failed records: {str(e)}")
 
 
@@ -2314,7 +2373,7 @@ async def predict_fhir_resource(
         }
     except Exception as e:
         # Fallback to heuristic if Gemini fails
-        print(f"⚠️  Gemini prediction failed, using fallback: {e}")
+        print(f"[WARNING] Gemini prediction failed, using fallback: {e}")
         return {
             "success": True,
             "predictedResource": "Patient",
@@ -2551,6 +2610,101 @@ async def get_user_conversations(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get conversations: {str(e)}")
+
+
+@app.get("/api/v1/chat/llm/provider")
+async def get_llm_provider(current_user: TokenData = Depends(optional_auth)):
+    """
+    Get current LLM provider configuration
+    
+    Returns:
+        Current provider (gemini or local_llm) and connection status
+    """
+    try:
+        chatbot = get_chatbot_service()
+        
+        status = {
+            "provider": chatbot.provider,
+            "available": True
+        }
+        
+        if chatbot.provider == "local_llm":
+            status["local_llm_url"] = chatbot.local_llm.base_url
+            status["model_name"] = chatbot.local_llm.model_name
+            status["available"] = chatbot.local_llm.is_available()
+        
+        return {
+            "success": True,
+            **status
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get provider info: {str(e)}")
+
+
+@app.post("/api/v1/chat/llm/provider")
+async def set_llm_provider(
+    provider: str = Body(..., embed=True),
+    current_user: TokenData = Depends(optional_auth)
+):
+    """
+    Switch LLM provider
+    
+    Args:
+        provider: 'gemini' or 'local_llm'
+    
+    Returns:
+        Success confirmation with new provider info
+    """
+    try:
+        if provider not in ['gemini', 'local_llm']:
+            raise HTTPException(status_code=400, detail="Provider must be 'gemini' or 'local_llm'")
+        
+        # Update environment variable
+        os.environ['FHIR_LLM_PROVIDER'] = provider
+        
+        # Reinitialize chatbot service with new provider
+        global _chatbot_service
+        _chatbot_service = None
+        chatbot = get_chatbot_service()
+        
+        return {
+            "success": True,
+            "provider": chatbot.provider,
+            "message": f"Switched to {chatbot.provider} provider"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to switch provider: {str(e)}")
+
+
+@app.get("/api/v1/chat/llm/models")
+async def get_local_models(current_user: TokenData = Depends(optional_auth)):
+    """
+    Get list of available local LLM models
+    
+    Returns:
+        List of models from local LLM server
+    """
+    try:
+        from local_llm_client import get_local_llm_client
+        local_llm = get_local_llm_client()
+        
+        if not local_llm.is_available():
+            return {
+                "success": False,
+                "message": f"Local LLM server not available at {local_llm.base_url}",
+                "models": []
+            }
+        
+        models = local_llm.get_models()
+        
+        return {
+            "success": True,
+            "base_url": local_llm.base_url,
+            "models": models,
+            "count": len(models)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get models: {str(e)}")
 
 
 # Serve static frontend files

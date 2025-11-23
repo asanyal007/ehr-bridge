@@ -1,6 +1,7 @@
 """
 FHIR Data Chatbot Service
 Implements RAG (Retrieval-Augmented Generation) pattern for natural language querying of FHIR data
+Supports both Gemini AI and Local LLM models
 """
 import os
 import json
@@ -12,6 +13,7 @@ from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime
 import google.generativeai as genai
 from mongodb_client import get_mongo_client
+from local_llm_client import get_local_llm_client
 
 
 # Simplified FHIR Schema for Gemini prompt
@@ -135,7 +137,7 @@ class QueryCache:
             cached_at, results = self.cache[key]
             age = (datetime.now() - cached_at).total_seconds()
             if age < self.ttl_seconds:
-                print(f"✅ Cache hit for query (age: {age:.1f}s)")
+                print(f"[CACHE HIT] Query cached (age: {age:.1f}s)")
                 return results
             else:
                 # Expired
@@ -151,7 +153,7 @@ class QueryCache:
         
         key = self._make_key(query)
         self.cache[key] = (datetime.now(), results)
-        print(f"💾 Cached query results ({len(results)} records)")
+        print(f"[CACHE] Stored query results ({len(results)} records)")
     
     def clear(self):
         """Clear all cached results"""
@@ -205,26 +207,50 @@ class ChatbotAnalytics:
 class FHIRChatbotService:
     """
     FHIR Data Chatbot using RAG pattern:
-    1. Translation: Natural language → MongoDB query (via Gemini)
+    1. Translation: Natural language → MongoDB query (via AI)
     2. Retrieval: Execute query against MongoDB fhir_* collections
-    3. Synthesis: Raw FHIR data → Plain English answer (via Gemini)
+    3. Synthesis: Raw FHIR data → Plain English answer (via AI)
+    
+    Supports both Gemini AI and Local LLM providers
     """
     
-    def __init__(self, api_key: str = None, mongo_db: str = "ehr"):
+    def __init__(self, api_key: str = None, mongo_db: str = "ehr", provider: str = None):
         """
         Initialize FHIR Chatbot Service
         
         Args:
-            api_key: Google Gemini API key
+            api_key: Google Gemini API key (only used if provider is 'gemini')
             mongo_db: MongoDB database name for FHIR collections
+            provider: AI provider to use ('gemini' or 'local_llm'). 
+                     Defaults to env var FHIR_LLM_PROVIDER or 'gemini'
         """
-        self.api_key = api_key or os.getenv("GEMINI_API_KEY", "AIzaSyCwfd_DHnKMYOWMbqX5VVTmyRNBv-Ni5vI")
         self.mongo_db = mongo_db
         self.debug = os.getenv("FHIR_CHATBOT_DEBUG", "false").lower() in {"1", "true", "yes", "on"}
         
-        # Configure Gemini
-        genai.configure(api_key=self.api_key)
-        self.model = genai.GenerativeModel('gemini-2.0-flash-exp')
+        # Determine which AI provider to use
+        self.provider = provider or os.getenv("FHIR_LLM_PROVIDER", "gemini").lower()
+        
+        # Initialize the appropriate AI provider
+        if self.provider == "local_llm":
+            # Use local LLM
+            try:
+                self.local_llm = get_local_llm_client()
+                if not self.local_llm.is_available():
+                    print("[WARNING] Local LLM server not available, falling back to Gemini")
+                    self.provider = "gemini"
+                else:
+                    self.model = self.local_llm
+                    print(f"[OK] FHIR Chatbot using Local LLM at {self.local_llm.base_url}")
+            except Exception as e:
+                print(f"[WARNING] Local LLM initialization failed: {e}, falling back to Gemini")
+                self.provider = "gemini"
+        
+        # Fall back to or explicitly use Gemini
+        if self.provider == "gemini":
+            self.api_key = api_key or os.getenv("GEMINI_API_KEY", "AIzaSyCwfd_DHnKMYOWMbqX5VVTmyRNBv-Ni5vI")
+            genai.configure(api_key=self.api_key)
+            self.model = genai.GenerativeModel('gemini-2.0-flash-exp')
+            print(f"[OK] FHIR Chatbot using Gemini AI")
         
         # Get MongoDB client
         self.mongo_client = get_mongo_client().client
@@ -235,7 +261,7 @@ class FHIRChatbotService:
         # Initialize analytics
         self.analytics = ChatbotAnalytics()
         
-        print(f"✅ FHIR Chatbot Service initialized with caching and analytics")
+        print(f"[OK] FHIR Chatbot Service initialized with {self.provider} provider")
 
     def _debug(self, message: str, payload: Any = None):
         """Helper to print debug logs when enabled."""
@@ -372,12 +398,12 @@ class FHIRChatbotService:
             
             return results
         except Exception as e:
-            print(f"⚠️ Sample data error: {e}")
+            print(f"[WARNING] Sample data error: {e}")
             return []
     
     def translate_to_query(self, question: str, conversation_history: List[Dict] = None) -> Dict[str, Any]:
         """
-        Step 1: Translate natural language question to MongoDB query using Gemini
+        Step 1: Translate natural language question to MongoDB query using AI
         with validation and retry logic
         
         Args:
@@ -396,18 +422,41 @@ class FHIRChatbotService:
         
         for attempt in range(max_retries):
             try:
-                # Build context from conversation history
-                context = ""
-                if conversation_history:
-                    recent = conversation_history[-5:]  # Increased from 3 to 5
-                    context = "\n".join([
-                        f"User: {msg['content']}" if msg['role'] == 'user' 
-                        else f"Assistant: {msg['content']}"
-                        for msg in recent
-                    ])
-                
-                # Enhanced prompt with more examples
-                prompt = f"""You are a FHIR data query translator. Convert natural language questions into MongoDB queries.
+                # Build simpler prompt for better local LLM performance
+                if self.provider == "local_llm":
+                    # Simplified, more direct prompt for local models
+                    prompt = f"""Convert this question to a MongoDB query JSON.
+
+Question: {question}
+
+Available resources: Patient, Observation, Condition, MedicationRequest, DiagnosticReport
+Patient fields: id, gender, birthDate, name, address
+Observation fields: id, subject, code, valueQuantity, effectiveDateTime
+Condition fields: id, subject, code, onsetDateTime, clinicalStatus
+
+Output ONLY valid JSON in this format:
+{{"resourceType": "Patient", "filter": {{}}, "limit": 100}}
+
+For counting: {{"resourceType": "Patient", "count": true}}
+
+Examples:
+"How many patients?" -> {{"resourceType": "Patient", "count": true}}
+"Show me female patients" -> {{"resourceType": "Patient", "filter": {{"gender": "female"}}, "limit": 100}}
+
+JSON:"""
+                else:
+                    # Build context from conversation history (Gemini only)
+                    context = ""
+                    if conversation_history:
+                        recent = conversation_history[-5:]
+                        context = "\n".join([
+                            f"User: {msg['content']}" if msg['role'] == 'user' 
+                            else f"Assistant: {msg['content']}"
+                            for msg in recent
+                        ])
+                    
+                    # Enhanced prompt with more examples for Gemini
+                    prompt = f"""You are a FHIR data query translator. Convert natural language questions into MongoDB queries.
 
 Available FHIR Resources and Fields:
 {json.dumps(FHIR_SIMPLIFIED_SCHEMA, indent=2)}
@@ -439,9 +488,14 @@ User Question: {question}
 
 MongoDB Query JSON:"""
                 
-                response = self.model.generate_content(prompt)
+                # Adjust parameters for local LLM
+                if self.provider == "local_llm":
+                    response = self.model.generate_content(prompt, temperature=0.3, max_tokens=500)
+                else:
+                    response = self.model.generate_content(prompt)
+                    
                 response_text = response.text or ""
-                self._debug(f"Gemini raw response (attempt {attempt + 1})", response_text)
+                self._debug(f"AI raw response (attempt {attempt + 1})", response_text)
 
                 query_payload = self._parse_model_query(response_text)
                 query = self._sanitize_query(query_payload)
@@ -463,7 +517,7 @@ MongoDB Query JSON:"""
         
         # All retries failed - return safe fallback
         error_message = str(last_error) if last_error else "Unknown translation error"
-        print(f"❌ Query translation failed after {max_retries} attempts: {error_message}")
+        print(f"[ERROR] Query translation failed after {max_retries} attempts: {error_message}")
         return {
             "resourceType": "Patient",
             "filter": {},
@@ -522,7 +576,7 @@ MongoDB Query JSON:"""
                 return results
         
         except Exception as e:
-            print(f"⚠️ Query execution error: {e}")
+            print(f"[WARNING] Query execution error: {e}")
             return []
     
     def _describe_filters(self, filters: Dict[str, Any]) -> str:
@@ -611,12 +665,24 @@ MongoDB Query JSON:"""
             resource_type = results[0]['resourceType']
             return f"There are {count} {resource_type} records in the database."
         
-        # Limit data sent to Gemini
+        # Limit data sent to AI
         sample_size = min(len(results), 10)
         sample_results = results[:sample_size]
         
-        # Enhanced prompt for plain text responses
-        prompt = f"""You are a clinical data assistant. Answer the user's question in PLAIN TEXT ONLY (no markdown, no formatting).
+        # Build prompt based on provider
+        if self.provider == "local_llm":
+            # Simpler prompt for local models
+            prompt = f"""Answer this question based on the data:
+
+Question: {question}
+
+Data ({sample_size} of {len(results)} records):
+{json.dumps(sample_results, indent=2, default=str)[:1000]}
+
+Give a brief answer (1-2 sentences):"""
+        else:
+            # Enhanced prompt for Gemini
+            prompt = f"""You are a clinical data assistant. Answer the user's question in PLAIN TEXT ONLY (no markdown, no formatting).
 
 User Question: {question}
 
@@ -637,7 +703,12 @@ Instructions:
 Plain Text Answer:"""
         
         try:
-            response = self.model.generate_content(prompt)
+            # Adjust parameters for local LLM
+            if self.provider == "local_llm":
+                response = self.model.generate_content(prompt, temperature=0.5, max_tokens=300)
+            else:
+                response = self.model.generate_content(prompt)
+                
             answer = response.text.strip()
             
             # Remove any markdown formatting that slipped through
@@ -650,7 +721,7 @@ Plain Text Answer:"""
             return answer
             
         except Exception as e:
-            print(f"⚠️ Answer synthesis error: {e}")
+            print(f"[WARNING] Answer synthesis error: {e}")
             # Fallback: basic summary in plain text
             resource_type = results[0].get('resourceType', 'records')
             return f"Found {len(results)} {resource_type} records matching your query."
@@ -703,7 +774,7 @@ Plain Text Answer:"""
             }
         
         except Exception as e:
-            print(f"❌ Chat pipeline error: {e}")
+            print(f"[ERROR] Chat pipeline error: {e}")
             return {
                 "answer": f"I encountered an error processing your question: {str(e)}. Please try rephrasing or ask a simpler question.",
                 "query_used": {},
