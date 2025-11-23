@@ -171,8 +171,24 @@ class BiomedicalAIEngine:
             source_fields = list(source_schema.keys())
             target_fields = list(target_schema.keys())
             
+            # Extract target resource type for context
+            target_resource_type = self._extract_resource_type(target_schema)
+            
             print(f"[HYBRID] Analyzing {len(source_fields)} source → {len(target_fields)} target fields")
+            if target_resource_type:
+                print(f"[HYBRID] Target resource type: {target_resource_type}")
             print("[HYBRID] Using SBERT for embeddings + GPT-OSS for reasoning")
+            
+            # Verify GPT-OSS is available for low-confidence suggestions
+            if include_reasoning:
+                if self.gpt_oss_client and self.gpt_oss_client.is_available():
+                    print("[HYBRID] GPT-OSS is available - AI suggestions will be generated for <40% confidence mappings")
+                else:
+                    print("[HYBRID WARNING] GPT-OSS not available - low-confidence suggestions may be limited")
+                    if not self.gpt_oss_client:
+                        print("[HYBRID WARNING] GPT-OSS client not initialized")
+                    elif not self.gpt_oss_client.is_available():
+                        print("[HYBRID WARNING] GPT-OSS server not responding - check if LM Studio is running")
             
             # Use SBERT for fast embedding generation
             source_texts = [
@@ -204,9 +220,70 @@ class BiomedicalAIEngine:
                     if best_score > 0.3 and target_field not in mapped_targets:
                         # Get GPT-OSS explanation for uncertain mappings
                         explanation = None
+                        low_conf_suggestion = None
+                        
+                        # CRITICAL: For low confidence mappings, ALWAYS generate AI suggestion immediately
+                        if best_score < 0.4:
+                            print(f"[AI] Low confidence detected ({best_score:.0%}): {source_field} -> {target_field}")
+                            print(f"[AI] Generating AI suggestion NOW...")
+                            
+                            if include_reasoning and self.gpt_oss_client:
+                                # Check availability first
+                                if not self.gpt_oss_client.is_available():
+                                    print(f"[AI WARNING] GPT-OSS server not available. Check if LM Studio is running on {self.gpt_oss_client.base_url}")
+                                    low_conf_suggestion = {
+                                        "action": "REVIEW",
+                                        "suggestion": None,
+                                        "reasoning": f"GPT-OSS server at {self.gpt_oss_client.base_url} is not available. Please ensure LM Studio is running with a model loaded. This field has very low confidence ({best_score:.0%}) mapping to '{target_field}'. Consider: 1) Mapping to Observation resource if this is a measurement, 2) Creating a custom extension, 3) Rejecting if not clinically relevant.",
+                                        "alternative_resource": "Observation" if any(kw in source_field.lower() for kw in ['result', 'date', 'value', 'measurement']) else None
+                                    }
+                                else:
+                                    try:
+                                        # Generate AI suggestion synchronously - this MUST complete before creating mapping
+                                        print(f"[AI] Calling GPT-OSS for {source_field}...")
+                                        low_conf_suggestion = self.gpt_oss_client.suggest_action_for_low_confidence(
+                                            source_field, 
+                                            source_schema[source_field], 
+                                            target_field, 
+                                            best_score,
+                                            target_resource_type=target_resource_type
+                                        )
+                                        print(f"[AI SUCCESS] Generated AI suggestion for {source_field}:")
+                                        print(f"  Action: {low_conf_suggestion.get('action', 'UNKNOWN')}")
+                                        print(f"  Reasoning: {low_conf_suggestion.get('reasoning', 'N/A')[:100]}...")
+                                        if low_conf_suggestion.get('alternative_resource'):
+                                            print(f"  Alternative Resource: {low_conf_suggestion.get('alternative_resource')}")
+                                    except Exception as e:
+                                        error_msg = str(e)
+                                        print(f"[AI ERROR] Failed to generate suggestion for {source_field}: {error_msg}")
+                                        
+                                        # Provide helpful fallback based on error type
+                                        if "Method Not Allowed" in error_msg or "405" in error_msg:
+                                            fallback_reasoning = f"GPT-OSS API endpoint not available (Method Not Allowed). Please check LM Studio is running and supports OpenAI-compatible API at {self.gpt_oss_client.base_url}. This field '{source_field}' has very low confidence ({best_score:.0%}) mapping to '{target_field}'. Consider mapping to Observation resource or creating a custom extension."
+                                        elif "Connection" in error_msg or "refused" in error_msg.lower():
+                                            fallback_reasoning = f"Could not connect to GPT-OSS server. Please ensure LM Studio is running on {self.gpt_oss_client.base_url} with a model loaded. This field has very low confidence ({best_score:.0%})."
+                                        else:
+                                            fallback_reasoning = f"AI suggestion generation failed: {error_msg[:100]}. This field has very low confidence ({best_score:.0%}) mapping to '{target_field}'. Please review manually."
+                                        
+                                        low_conf_suggestion = {
+                                            "action": "REVIEW",
+                                            "suggestion": None,
+                                            "reasoning": fallback_reasoning,
+                                            "alternative_resource": "Observation" if any(kw in source_field.lower() for kw in ['result', 'date', 'value', 'measurement', 'test', 'lab']) else None
+                                        }
+                            else:
+                                print(f"[AI WARNING] GPT-OSS not configured (include_reasoning={include_reasoning}, client={bool(self.gpt_oss_client)})")
+                                low_conf_suggestion = {
+                                    "action": "REVIEW",
+                                    "suggestion": None,
+                                    "reasoning": f"GPT-OSS not configured. This field has very low confidence ({best_score:.0%}). Please review manually.",
+                                    "alternative_resource": None
+                                }
+                        
+                        # Get explanation for uncertain mappings (but don't block on it)
                         if include_reasoning and self.gpt_oss_client and best_score < 0.9:
                             try:
-                                print(f"[HYBRID] Getting GPT-OSS explanation for {source_field} → {target_field}")
+                                print(f"[HYBRID] Getting GPT-OSS explanation for {source_field} -> {target_field}")
                                 explanation = self.gpt_oss_client.explain_mapping(
                                     source_field=source_field,
                                     target_field=target_field,
@@ -214,9 +291,7 @@ class BiomedicalAIEngine:
                                     target_type=target_schema[target_field]
                                 )
                             except Exception as e:
-                                print(f"[WARNING] GPT-OSS explanation failed for {source_field}→{target_field}: {e}")
-                                import traceback
-                                traceback.print_exc()
+                                print(f"[WARNING] GPT-OSS explanation failed for {source_field}->{target_field}: {e}")
                         
                         transform = self._suggest_transform(
                             source_field,
@@ -250,13 +325,28 @@ class BiomedicalAIEngine:
                             except Exception as e:
                                 print(f"[WARNING] Failed to add GPT-OSS attributes: {e}")
                         
+                        # CRITICAL: Attach low-confidence suggestion (must be done for <40% mappings)
+                        if best_score < 0.4:
+                            if low_conf_suggestion:
+                                mapping.low_confidence_suggestion = low_conf_suggestion
+                                print(f"[VERIFY] Attached suggestion to mapping: {mapping.sourceField} has suggestion={bool(mapping.low_confidence_suggestion)}")
+                            else:
+                                print(f"[ERROR] No suggestion generated for {source_field} despite <40% confidence!")
+                                # Force a fallback if somehow we don't have a suggestion
+                                mapping.low_confidence_suggestion = {
+                                    "action": "REVIEW",
+                                    "suggestion": None,
+                                    "reasoning": f"Field '{source_field}' has very low confidence ({best_score:.0%}) mapping to '{target_field}'. This may indicate: 1) Field should map to a different FHIR resource (e.g., Observation for measurements), 2) Field requires a custom extension, 3) Field should be ignored if not clinically relevant.",
+                                    "alternative_resource": "Observation" if any(keyword in source_field.lower() for keyword in ['result', 'value', 'measurement', 'test', 'lab']) else None
+                                }
+                        
                         mappings.append(mapping)
                         mapped_targets.add(target_field)
                 except Exception as e:
                     print(f"[ERROR] Failed to process mapping for {source_field}: {e}")
                     import traceback
                     traceback.print_exc()
-                    continue  # Skip this mapping and continue
+                    continue
             
             # Handle special patterns
             try:
@@ -268,6 +358,75 @@ class BiomedicalAIEngine:
             except Exception as e:
                 print(f"[WARNING] Special pattern detection failed: {e}")
             
+            # Final pass: ALWAYS generate AI suggestions for low-confidence mappings (<40%)
+            print("[HYBRID] Final pass: Generating AI suggestions for low-confidence mappings...")
+            low_conf_count = 0
+            for mapping in mappings:
+                if mapping.confidenceScore < 0.4:
+                    low_conf_count += 1
+                    # Always regenerate suggestion to ensure we have the latest AI analysis
+                    if include_reasoning and self.gpt_oss_client:
+                        try:
+                            # Find source type from schema
+                            source_type = source_schema.get(mapping.sourceField, "unknown")
+                            
+                            print(f"[AI] Generating suggestion for {mapping.sourceField} -> {mapping.targetField} (confidence: {mapping.confidenceScore:.0%})")
+                            suggestion = self.gpt_oss_client.suggest_action_for_low_confidence(
+                                mapping.sourceField, 
+                                source_type, 
+                                mapping.targetField, 
+                                mapping.confidenceScore,
+                                target_resource_type=target_resource_type
+                            )
+                            mapping.low_confidence_suggestion = suggestion
+                            print(f"[OK] AI suggestion generated for {mapping.sourceField}: {suggestion.get('action', 'UNKNOWN')}")
+                        except Exception as e:
+                            print(f"[ERROR] Failed to generate AI suggestion for {mapping.sourceField}: {e}")
+                            import traceback
+                            traceback.print_exc()
+                            # Retry once with a simpler prompt
+                            try:
+                                print(f"[RETRY] Retrying AI suggestion for {mapping.sourceField}...")
+                                suggestion = self.gpt_oss_client.suggest_action_for_low_confidence(
+                                    mapping.sourceField, 
+                                    source_type, 
+                                    mapping.targetField, 
+                                    mapping.confidenceScore,
+                                    target_resource_type=target_resource_type
+                                )
+                                mapping.low_confidence_suggestion = suggestion
+                                print(f"[OK] Retry successful for {mapping.sourceField}")
+                            except Exception as e2:
+                                print(f"[ERROR] Retry also failed for {mapping.sourceField}: {e2}")
+                                # Only use fallback if GPT-OSS completely unavailable
+                                if not self.gpt_oss_client.is_available():
+                                    mapping.low_confidence_suggestion = {
+                                        "action": "REVIEW",
+                                        "suggestion": None,
+                                        "reasoning": f"GPT-OSS server unavailable. Please review manually. This field ({mapping.sourceField}) has very low confidence ({mapping.confidenceScore:.0%}) mapping to {mapping.targetField}. Consider mapping to a different FHIR resource or creating a custom extension.",
+                                        "alternative_resource": None
+                                    }
+                                else:
+                                    # GPT-OSS is available but failed - still try to provide useful guidance
+                                    mapping.low_confidence_suggestion = {
+                                        "action": "REVIEW",
+                                        "suggestion": None,
+                                        "reasoning": f"AI analysis suggests reviewing this mapping. Field '{mapping.sourceField}' has very low confidence ({mapping.confidenceScore:.0%}) mapping to '{mapping.targetField}'. Consider: 1) Mapping to Observation resource if this is a measurement, 2) Creating a custom extension if source-specific, 3) Rejecting if not clinically relevant.",
+                                        "alternative_resource": "Observation" if "date" in mapping.sourceField.lower() or "result" in mapping.sourceField.lower() else None
+                                    }
+                    else:
+                        # GPT-OSS not available - provide basic guidance
+                        if not self.gpt_oss_client:
+                            mapping.low_confidence_suggestion = {
+                                "action": "REVIEW",
+                                "suggestion": None,
+                                "reasoning": f"GPT-OSS not configured. This field has very low confidence ({mapping.confidenceScore:.0%}). Please review manually.",
+                                "alternative_resource": None
+                            }
+            
+            if low_conf_count > 0:
+                print(f"[OK] Processed {low_conf_count} low-confidence mappings, generated AI suggestions")
+
             mappings.sort(key=lambda x: x.confidenceScore, reverse=True)
             
             print(f"[OK] Generated {len(mappings)} mappings (HYBRID mode: SBERT + GPT-OSS)")
@@ -293,7 +452,12 @@ class BiomedicalAIEngine:
         source_fields = list(source_schema.keys())
         target_fields = list(target_schema.keys())
         
+        # Extract target resource type for context
+        target_resource_type = self._extract_resource_type(target_schema)
+        
         print(f"[GPT-OSS] Analyzing {len(source_fields)} source fields -> {len(target_fields)} target fields")
+        if target_resource_type:
+            print(f"[GPT-OSS] Target resource type: {target_resource_type}")
         
         # Generate embeddings for all fields
         source_embeddings = {}
@@ -326,20 +490,33 @@ class BiomedicalAIEngine:
                     best_score = similarity
                     best_target = target_field
             
-            # Only create mapping if confidence is above threshold
-            if best_score > 0.3 and best_target:
-                # Get detailed explanation from GPT-OSS
-                explanation = None
-                if include_reasoning and best_score < 0.9:  # Only get explanation for uncertain mappings
-                    try:
-                        explanation = self.gpt_oss_client.explain_mapping(
-                            source_field=source_field,
-                            target_field=best_target,
-                            source_type=source_schema[source_field],
-                            target_type=target_schema[best_target]
-                        )
-                    except Exception as e:
-                        print(f"[WARNING] Failed to get GPT-OSS explanation: {e}")
+                # Only create mapping if confidence is above threshold
+                if best_score > 0.3 and best_target:
+                    # Get detailed explanation from GPT-OSS
+                    explanation = None
+                    low_conf_suggestion = None
+                    
+                    if include_reasoning:
+                        if best_score < 0.4:
+                             # Low confidence logic (<40%)
+                             try:
+                                 low_conf_suggestion = self.gpt_oss_client.suggest_action_for_low_confidence(
+                                     source_field, source_schema[source_field], best_target, best_score,
+                                     target_resource_type=target_resource_type
+                                 )
+                             except Exception as e:
+                                 print(f"[WARNING] Low confidence suggestion failed: {e}")
+
+                        if best_score < 0.9:  # Only get explanation for uncertain mappings
+                            try:
+                                explanation = self.gpt_oss_client.explain_mapping(
+                                    source_field=source_field,
+                                    target_field=best_target,
+                                    source_type=source_schema[source_field],
+                                    target_type=target_schema[best_target]
+                                )
+                            except Exception as e:
+                                print(f"[WARNING] Failed to get GPT-OSS explanation: {e}")
                 
                 # Determine transformation type
                 transform = self._suggest_transform(
@@ -363,6 +540,9 @@ class BiomedicalAIEngine:
                     mapping.gpt_oss_clinical_context = explanation.clinical_context
                     mapping.gpt_oss_type_compatible = explanation.type_compatibility
                 
+                if low_conf_suggestion:
+                    mapping.low_confidence_suggestion = low_conf_suggestion
+
                 mappings.append(mapping)
                 mapped_targets.add(best_target)
         
@@ -449,6 +629,33 @@ class BiomedicalAIEngine:
         
         print(f"[OK] Generated {len(mappings)} mapping suggestions with SBERT")
         return mappings
+    
+    def _extract_resource_type(self, target_schema: Dict[str, str]) -> Optional[str]:
+        """
+        Extract FHIR resource type from target schema paths
+        
+        Args:
+            target_schema: Dictionary of target field paths (e.g., "Patient.name", "Observation.code")
+            
+        Returns:
+            Resource type string (e.g., "Patient", "Observation") or None
+        """
+        if not target_schema:
+            return None
+        
+        # Check first few target fields to find resource type
+        for target_field in list(target_schema.keys())[:5]:
+            # FHIR paths typically start with resource type (e.g., "Patient.name", "Observation.code")
+            if '.' in target_field:
+                resource_type = target_field.split('.')[0]
+                # Validate it's a known FHIR resource type
+                known_resources = ['Patient', 'Observation', 'Condition', 'Procedure', 
+                                 'Encounter', 'MedicationRequest', 'DiagnosticReport',
+                                 'Organization', 'Practitioner', 'Location']
+                if resource_type in known_resources:
+                    return resource_type
+        
+        return None
     
     def _enhance_field_description(self, field_name: str, field_type: str) -> str:
         """Enhance field name with type and context for better semantic matching"""

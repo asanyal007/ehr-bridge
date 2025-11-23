@@ -1,0 +1,6 @@
+patient_id,first_name,last_name,dob,gender,marital_status,address_line1,city,state,zip_code,phone,email,encounter_date,encounter_type,provider_name,diagnosis_code,diagnosis_description,systolic_bp,diastolic_bp,weight_kg,smoking_status
+PT001,James,Smith,1975-03-15,M,M,123 Oak St,Springfield,IL,62704,555-0101,jsmith@email.com,2023-10-01,Ambulatory,Dr. Alice Jones,E11.9,Type 2 diabetes mellitus without complications,130,85,95.5,Former smoker
+PT002,Maria,Garcia,1988-07-22,F,S,456 Maple Ave,Chicago,IL,60614,555-0102,mgarcia@email.com,2023-10-02,Emergency,Dr. Bob Wilson,J01.90,Acute sinusitis unspecified,120,80,65.0,Never smoker
+PT003,Robert,Johnson,1950-11-30,M,D,789 Pine Rd,Evanston,IL,60201,555-0103,rjohnson@email.com,2023-10-03,Inpatient,Dr. Carol Brown,I10,Essential (primary) hypertension,145,90,102.3,Current smoker
+PT004,Linda,Williams,1995-01-10,F,M,321 Elm St,Naperville,IL,60540,555-0104,lwilliams@email.com,2023-10-04,Wellness,Dr. David Miller,Z00.00,Encounter for general adult medical exam,118,76,58.9,Never smoker
+PT005,Michael,Brown,1962-09-05,M,W,654 Cedar Ln,Peoria,IL,61614,555-0105,mbrown@email.com,2023-10-05,Ambulatory,Dr. Alice Jones,M54.5,Low back pain,135,82,88.0,Former smoker

@@ -350,42 +350,67 @@ Focus on:
         
         return alternatives[:top_k]
     
-    def validate_mapping_batch(
+    def suggest_action_for_low_confidence(
         self,
-        mappings: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        source_field: str,
+        source_type: str,
+        current_target: str,
+        confidence: float,
+        target_resource_type: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
-        Validate a batch of mappings using GPT-OSS
+        Ask GPT-OSS for a recommendation when confidence is low (< 40%)
+        Should we map to a custom column, different FHIR resource, or ignore?
         
         Args:
-            mappings: List of mapping dicts with 'source', 'target', etc.
-            
-        Returns:
-            List of validated mappings with confidence and reasoning
-        """
-        # Build a comprehensive prompt for batch validation
-        mappings_text = "\n\n".join([
-            f"{i+1}. {m['sourceField']} ({m.get('sourceType', 'unknown')}) -> {m['targetField']} ({m.get('targetType', 'unknown')})"
-            for i, m in enumerate(mappings)
-        ])
+            source_field: Source field name
+            source_type: Source field data type
+            current_target: Current target field path
+            confidence: Confidence score (0.0 to 1.0)
+            target_resource_type: Current target FHIR resource type (e.g., "Patient", "Observation")
         
-        prompt = f"""Review these {len(mappings)} healthcare data field mappings:
+        Returns:
+            Dict with action, suggestion, reasoning, and optional alternative_resource
+        """
+        resource_context = f"Current target is in {target_resource_type} resource." if target_resource_type else "Target resource type is unknown."
+        
+        prompt = f"""You are a healthcare data integration expert. The mapping confidence for '{source_field}' ({source_type}) -> '{current_target}' is very low ({confidence:.0%}).
 
-{mappings_text}
+{resource_context}
 
-For each mapping, provide:
-1. Confidence score (0.0 to 1.0)
-2. Brief reasoning
-3. Any concerns or recommendations
+Analyze this low-confidence mapping and recommend the best action:
 
-Return as JSON array:
-[
-  {{"mapping_id": 1, "confidence": 0.95, "reasoning": "...", "concerns": []}},
-  ...
-]
+1. **REMAP**: Map to a different standard FHIR field in the same resource (if a better field exists)
+2. **DIFFERENT_RESOURCE**: Map to a different FHIR resource type entirely (e.g., Observation, Condition, Procedure)
+3. **CUSTOM**: Create a custom extension/field (if it's source-system-specific and doesn't fit standard FHIR)
+4. **IGNORE**: Don't map this field (if it's not clinically relevant or redundant)
+
+Consider:
+- What FHIR resource type would be most appropriate for this field?
+- Is there a standard FHIR element that better represents this data?
+- Should this be a custom extension on the current resource?
+- Is this field clinically relevant enough to map?
+
+Return JSON:
+{{
+    "action": "REMAP" | "DIFFERENT_RESOURCE" | "CUSTOM" | "IGNORE",
+    "suggestion": "suggested_field_path_or_resource_type",
+    "reasoning": "detailed explanation of why this action is recommended",
+    "alternative_resource": "FHIR resource type name (only if action is DIFFERENT_RESOURCE, e.g., 'Observation', 'Condition', 'Procedure')"
+}}
+
+Examples:
+- If source is "lab_result_code" and current target is "Patient.identifier", suggest DIFFERENT_RESOURCE with alternative_resource="Observation"
+- If source is "internal_notes" and doesn't fit FHIR, suggest CUSTOM with suggestion="Patient.extension.internalNotes"
+- If source is "patient_age" but current target is wrong, suggest REMAP with suggestion="Patient.birthDate"
 """
         
         try:
+            # First verify the server is available
+            if not self.is_available():
+                raise Exception(f"GPT-OSS server at {self.base_url} is not available. Please ensure LM Studio is running with a model loaded.")
+            
+            print(f"[AI] Calling GPT-OSS at {self.base_url}/v1/chat/completions")
             response = requests.post(
                 f"{self.base_url}/v1/chat/completions",
                 json={
@@ -393,48 +418,68 @@ Return as JSON array:
                     "messages": [
                         {
                             "role": "system",
-                            "content": "You are an expert in healthcare data integration. Validate field mappings accurately."
+                            "content": "You are a healthcare data integration expert specializing in FHIR, HL7, and EHR data mapping."
                         },
                         {
                             "role": "user",
                             "content": prompt
                         }
                     ],
-                    "temperature": 0.2,
-                    "max_tokens": 2000
+                    "temperature": 0.1,
+                    "max_tokens": 500
                 },
-                timeout=self.timeout
+                timeout=self.timeout,
+                headers={"Content-Type": "application/json"}
             )
+            
+            # Check for HTTP errors
+            if response.status_code == 405:
+                raise Exception(f"Method Not Allowed. The endpoint /v1/chat/completions may not be supported. Please check LM Studio configuration.")
+            elif response.status_code != 200:
+                raise Exception(f"HTTP {response.status_code}: {response.text[:200]}")
+            
             response.raise_for_status()
             data = response.json()
             
-            if 'choices' in data and len(data['choices']) > 0:
-                content = data['choices'][0].get('message', {}).get('content', '')
+            if 'choices' not in data or len(data['choices']) == 0:
+                raise ValueError("No choices in GPT-OSS response")
+            
+            content = data['choices'][0]['message']['content']
+            
+            # Extract JSON
+            if '```json' in content:
+                content = content.split('```json')[1].split('```')[0].strip()
+            elif '```' in content:
+                content = content.split('```')[1].split('```')[0].strip()
                 
-                # Parse JSON
-                if '```json' in content:
-                    content = content.split('```json')[1].split('```')[0].strip()
-                elif '```' in content:
-                    content = content.split('```')[1].split('```')[0].strip()
-                
-                validations = json.loads(content)
-                
-                # Merge validations back into mappings
-                for i, mapping in enumerate(mappings):
-                    if i < len(validations):
-                        mapping['gpt_oss_confidence'] = validations[i].get('confidence', 0.5)
-                        mapping['gpt_oss_reasoning'] = validations[i].get('reasoning', '')
-                        mapping['gpt_oss_concerns'] = validations[i].get('concerns', [])
-                
-                return mappings
-                
+            result = json.loads(content)
+            # Ensure alternative_resource is included if action is DIFFERENT_RESOURCE
+            if result.get("action") == "DIFFERENT_RESOURCE" and "alternative_resource" not in result:
+                result["alternative_resource"] = result.get("suggestion", "Unknown")
+            
+            print(f"[AI SUCCESS] Got suggestion: action={result.get('action')}, resource={result.get('alternative_resource')}")
+            return result
+            
+        except requests.exceptions.ConnectionError as e:
+            error_msg = f"Failed to connect to GPT-OSS server at {self.base_url}. Please ensure LM Studio is running on http://127.0.0.1:1234 with a model loaded."
+            print(f"[ERROR] {error_msg}")
+            raise Exception(error_msg)
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 405:
+                error_msg = f"Method Not Allowed. The endpoint /v1/chat/completions is not available. Please check LM Studio is running and supports OpenAI-compatible API."
+            else:
+                error_msg = f"HTTP {e.response.status_code}: {e.response.text[:200]}"
+            print(f"[ERROR] {error_msg}")
+            raise Exception(error_msg)
+        except json.JSONDecodeError as e:
+            error_msg = f"Failed to parse GPT-OSS response as JSON: {str(e)}"
+            print(f"[ERROR] {error_msg}")
+            raise Exception(error_msg)
         except Exception as e:
-            print(f"[WARNING] Batch validation failed: {e}")
-            # Return original mappings with default confidence
-            for mapping in mappings:
-                mapping['gpt_oss_confidence'] = 0.5
-                mapping['gpt_oss_reasoning'] = "Validation unavailable"
-            return mappings
+            error_msg = f"Failed to get AI suggestion: {str(e)}. Please ensure LM Studio is running on http://localhost:1234 with a model loaded."
+            print(f"[ERROR] {error_msg}")
+            raise Exception(error_msg)
+
 
 
 # Singleton instance
