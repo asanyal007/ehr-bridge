@@ -1522,7 +1522,7 @@ function App() {
         srcCfg = {
           connector_type: 'csv_file',
           name: 'Patient CSV (Demo)',
-          config: { file_path: '/Users/aritrasanyal/EHR_Test/test_ehr_data.csv', delimiter: ',' },
+          config: { file_path: 'test_ehr_data.csv', delimiter: ',' },
           enabled: true
         };
         dstCfg = {
@@ -1548,7 +1548,8 @@ function App() {
           config: {}
         };
         if (sourceConnector.id === 'csv_file') {
-          srcCfg.config = { file_path: '/Users/aritrasanyal/EHR_Test/test_ehr_data.csv', delimiter: ',' };
+          // Use relative path - backend will resolve it from project root or data/examples folders
+          srcCfg.config = { file_path: 'test_ehr_data.csv', delimiter: ',' };
         }
         if (dstCfg.connector_type === 'mongodb') {
           dstCfg.config = { uri: 'mongodb://localhost:27017', database: 'ehr', collection: 'staging' };
@@ -3551,7 +3552,21 @@ function App() {
                       <div>
                         <h3 className="text-lg font-semibold text-amber-800">{j.job_name || 'Ingestion Job'}</h3>
                         <p className="text-xs text-gray-500 font-mono mt-1">{(j.job_id || j.jobId)}</p>
-                        <p className="text-sm text-gray-700 mt-2">Status: <span className={`font-semibold ${j.status === 'RUNNING' ? 'text-green-600' : j.status === 'STOPPED' ? 'text-gray-600' : 'text-amber-600'}`}>{j.status}</span></p>
+                        <p className="text-sm text-gray-700 mt-2">Status: <span className={`font-semibold ${j.status === 'RUNNING' ? 'text-green-600' : j.status === 'STOPPED' ? 'text-gray-600' : j.status === 'ERROR' ? 'text-red-600' : 'text-amber-600'}`}>{j.status}</span></p>
+                        {j.status === 'ERROR' && j.error && (
+                          <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                            <p className="text-sm font-semibold text-red-800 mb-1">Error Details:</p>
+                            <p className="text-sm text-red-700">{j.error.message || j.error || 'Unknown error occurred'}</p>
+                            {j.error.details && Object.keys(j.error.details).length > 0 && (
+                              <details className="mt-2">
+                                <summary className="text-xs text-red-600 cursor-pointer hover:text-red-800">Show technical details</summary>
+                                <pre className="mt-2 text-xs text-red-600 bg-red-100 p-2 rounded overflow-auto max-h-40">
+                                  {JSON.stringify(j.error.details, null, 2)}
+                                </pre>
+                              </details>
+                            )}
+                          </div>
+                        )}
                       </div>
                       <div className="space-x-2">
                         {j.status !== 'RUNNING' && (

@@ -59,6 +59,9 @@ class IngestionJob:
         self._pause_event = asyncio.Event()
         self._pause_event.set()
         self._stop = False
+        # Error tracking
+        self.error_message: Optional[str] = None
+        self.error_details: Optional[Dict[str, Any]] = None
         # Optional CSV rows cache for demo sources
         self._rows: List[Dict[str, Any]] = []
         self._row_idx: int = 0
@@ -82,20 +85,74 @@ class IngestionJob:
             if self.config.source_connector.connector_type == ConnectorType.csv_file:
                 file_path = self.config.source_connector.config.get('file_path')
                 if file_path:
-                    with open(file_path, 'r', newline='') as f:
+                    import os
+                    # Handle relative paths - try relative to project root
+                    if not os.path.isabs(file_path):
+                        # Try relative to backend directory
+                        backend_dir = os.path.dirname(os.path.abspath(__file__))
+                        project_root = os.path.dirname(backend_dir)
+                        # Try multiple possible locations
+                        possible_paths = [
+                            file_path,  # Original path
+                            os.path.join(backend_dir, file_path),  # Relative to backend
+                            os.path.join(project_root, file_path),  # Relative to project root
+                            os.path.join(project_root, 'data', file_path),  # In data folder
+                            os.path.join(project_root, 'examples', file_path),  # In examples folder
+                        ]
+                        
+                        found_path = None
+                        for path in possible_paths:
+                            if os.path.exists(path) and os.path.isfile(path):
+                                found_path = path
+                                break
+                        
+                        if found_path:
+                            file_path = found_path
+                        else:
+                            print(f"[ERROR] Ingestion job {self.config.job_id}: CSV file not found. Tried: {possible_paths}")
+                            self._rows = []
+                            return
+                    
+                    if not os.path.exists(file_path):
+                        print(f"[ERROR] Ingestion job {self.config.job_id}: CSV file does not exist: {file_path}")
+                        self._rows = []
+                        return
+                    
+                    with open(file_path, 'r', newline='', encoding='utf-8') as f:
                         reader = csv.DictReader(f)
                         self._rows = list(reader)
-        except Exception:
-            # Ignore source prep failures; engine will still simulate metrics
+                        print(f"[INFO] Ingestion job {self.config.job_id}: Loaded {len(self._rows)} rows from CSV: {file_path}")
+                else:
+                    print(f"[WARN] Ingestion job {self.config.job_id}: CSV source configured but no file_path provided")
+                    self._rows = []
+            else:
+                print(f"[INFO] Ingestion job {self.config.job_id}: Source type {self.config.source_connector.connector_type.value}, no CSV rows loaded")
+                self._rows = []
+        except Exception as e:
+            # Log source prep failures
+            import traceback
+            print(f"[ERROR] Ingestion job {self.config.job_id}: Failed to load source data: {e}")
+            print(f"[ERROR] Traceback: {traceback.format_exc()}")
             self._rows = []
+        
         # If Mongo destination configured, init client
         try:
             if self.config.destination_connector.connector_type == ConnectorType.mongodb:
                 uri = self.config.destination_connector.config.get('uri', 'mongodb://localhost:27017')
-                self._mongo_client = MongoClient(uri)
+                db_name = self.config.destination_connector.config.get('database', 'ehr')
+                coll_name = self.config.destination_connector.config.get('collection', 'staging')
+                
+                self._mongo_client = MongoClient(uri, serverSelectionTimeoutMS=5000)
+                # Test connection
+                self._mongo_client.admin.command('ping')
                 # FHIR store uses the same Mongo (db configurable)
-                self._fhir_store_db = self.config.destination_connector.config.get('database', 'ehr')
-        except Exception:
+                self._fhir_store_db = db_name
+                print(f"[INFO] Ingestion job {self.config.job_id}: MongoDB client initialized - uri={uri}, db={db_name}, collection={coll_name}")
+            else:
+                print(f"[WARN] Ingestion job {self.config.job_id}: Destination type {self.config.destination_connector.connector_type.value}, MongoDB client not initialized")
+                self._mongo_client = None
+        except Exception as e:
+            print(f"[ERROR] Ingestion job {self.config.job_id}: Failed to initialize MongoDB client: {e}")
             self._mongo_client = None
 
         # Load mapping job context if available (same ID convention)
@@ -134,7 +191,41 @@ class IngestionJob:
     async def start(self):
         if self.status in {"RUNNING", "PAUSED"}:
             return False
+        
+        # Prepare sources and validate configuration
         self._prepare_sources()
+        
+        # Validate configuration before starting
+        has_source = bool(self._rows) if self.config.source_connector.connector_type == ConnectorType.csv_file else True
+        has_destination = bool(self._mongo_client) if self.config.destination_connector.connector_type == ConnectorType.mongodb else True
+        
+        if not has_source:
+            error_msg = f"Cannot start - no source data available. Source connector: {self.config.source_connector.connector_type.value}, Config: {self.config.source_connector.config}"
+            print(f"[ERROR] Ingestion job {self.config.job_id}: {error_msg}")
+            self.status = "ERROR"
+            self.error_message = error_msg
+            self.error_details = {
+                "type": "source_missing",
+                "source_connector": self.config.source_connector.connector_type.value,
+                "source_config": self.config.source_connector.config,
+                "rows_loaded": len(self._rows)
+            }
+            return False
+        
+        if not has_destination:
+            error_msg = f"Cannot start - destination not configured. Destination connector: {self.config.destination_connector.connector_type.value}, Config: {self.config.destination_connector.config}"
+            print(f"[ERROR] Ingestion job {self.config.job_id}: {error_msg}")
+            self.status = "ERROR"
+            self.error_message = error_msg
+            self.error_details = {
+                "type": "destination_missing",
+                "destination_connector": self.config.destination_connector.connector_type.value,
+                "destination_config": self.config.destination_connector.config,
+                "mongo_client_initialized": self._mongo_client is not None
+            }
+            return False
+        
+        print(f"[INFO] Ingestion job {self.config.job_id}: Starting with {len(self._rows)} source rows, MongoDB destination ready")
         self.status = "RUNNING"
         self.metrics.start_time = datetime.now()
         self._stop = False
@@ -165,9 +256,16 @@ class IngestionJob:
         self._pause_event.set()
         return True
 
-    def _write_to_mongo(self, record: Dict[str, Any]):
+    def _write_to_mongo(self, record: Dict[str, Any]) -> bool:
+        """
+        Write record to MongoDB destination
+        
+        Returns:
+            True if successful, False otherwise
+        """
         if not self._mongo_client:
-            return
+            print(f"[WARN] Ingestion job {self.config.job_id}: MongoDB client not initialized")
+            return False
         try:
             db_name = self.config.destination_connector.config.get('database', 'ehr')
             coll_name = self.config.destination_connector.config.get('collection', 'staging')
@@ -177,9 +275,11 @@ class IngestionJob:
             doc['job_id'] = self.config.job_id
             doc['ingested_at'] = datetime.utcnow()
             coll.insert_one(doc)
-        except Exception:
-            # Swallow errors to keep streaming loop alive
-            pass
+            return True
+        except Exception as e:
+            # Log error but don't crash the loop
+            print(f"[ERROR] Ingestion job {self.config.job_id}: Failed to write to MongoDB: {e}")
+            return False
 
     def _upsert_fhir_store(self, resource: Optional[Dict[str, Any]]):
         if not self._fhir_store_enabled or not self._mongo_client or not resource or not isinstance(resource, dict):
@@ -210,16 +310,25 @@ class IngestionJob:
             resource_doc['persisted_at'] = datetime.utcnow()
 
             from pymongo import UpdateOne
-            coll.bulk_write([
+            result = coll.bulk_write([
                 UpdateOne({'id': rid}, {'$set': resource_doc}, upsert=True)
             ], ordered=True)
+            
+            # Log upsert result for debugging
+            if result.upserted_count > 0:
+                print(f"[INFO] Ingestion job {self.config.job_id}: Inserted new FHIR {resource_type} record (id: {rid})")
+            elif result.modified_count > 0:
+                print(f"[INFO] Ingestion job {self.config.job_id}: Updated existing FHIR {resource_type} record (id: {rid})")
             
             # Auto-sync to OMOP if enabled
             if self._omop_auto_sync:
                 self._sync_fhir_to_omop(resource_doc)
-        except Exception:
-            # Non-fatal for ingestion loop
-            pass
+        except Exception as e:
+            # Log error instead of silently swallowing
+            print(f"[ERROR] Ingestion job {self.config.job_id}: FHIR store upsert failed: {e}")
+            import traceback
+            print(f"[ERROR] Traceback: {traceback.format_exc()}")
+            # Still non-fatal for ingestion loop, but now we know about errors
     
     def _sync_fhir_to_omop(self, fhir_resource: Dict[str, Any]):
         """
@@ -312,6 +421,23 @@ class IngestionJob:
                 await self._pause_event.wait()
                 await asyncio.sleep(0.2)
                 self.metrics.received += 1
+                
+                # Check if we have data source and destination configured
+                has_source_data = bool(self._rows)
+                has_destination = bool(self._mongo_client)
+                
+                if not has_source_data:
+                    print(f"[WARN] Ingestion job {self.config.job_id}: No source data available (CSV rows: {len(self._rows)})")
+                    # Still increment received but don't process
+                    self.metrics.last_update = datetime.now()
+                    continue
+                
+                if not has_destination:
+                    print(f"[WARN] Ingestion job {self.config.job_id}: MongoDB destination not configured")
+                    # Still increment received but don't process
+                    self.metrics.last_update = datetime.now()
+                    continue
+                
                 # Simulate transformation success ~95% of time
                 if self.metrics.received % 20 == 0:
                     self.metrics.failed += 1
@@ -321,37 +447,59 @@ class IngestionJob:
                         failed_sample = self._rows[(self._row_idx) % len(self._rows)]
                     self._write_failed_to_mongo(failed_sample, reason="simulated_failure")
                 else:
-                    # Successful process
-                    self.metrics.processed += 1
-                    # If we have CSV rows and Mongo dest, transform to FHIR (if mappings exist) then write
-                    if self._rows and self._mongo_client:
-                        record = self._rows[self._row_idx % len(self._rows)]
-                        self._row_idx += 1
-                        out_doc: Dict[str, Any] = dict(record)
-                        try:
-                            if self._final_mappings and (self._resource_type or True):
-                                # Ensure mappings are plain dicts for transformer
-                                mapped = []
-                                for m in self._final_mappings:
-                                    if hasattr(m, 'model_dump'):
-                                        mapped.append(m.model_dump())
-                                    elif isinstance(m, dict):
-                                        mapped.append(m)
-                                resource_type = self._resource_type or 'Patient'
-                                fhir_doc = fhir_transformer.columnar_to_fhir(record, mapped, resource_type)
-                                out_doc = fhir_doc
-                                # Also upsert into FHIR store
-                                self._upsert_fhir_store(fhir_doc)
-                        except Exception:
-                            # On transform error, send to DLQ and continue
+                    # Process record: transform to FHIR (if mappings exist) then write
+                    record = self._rows[self._row_idx % len(self._rows)]
+                    self._row_idx += 1
+                    out_doc: Dict[str, Any] = dict(record)
+                    write_success = False
+                    
+                    try:
+                        if self._final_mappings and (self._resource_type or True):
+                            # Ensure mappings are plain dicts for transformer
+                            mapped = []
+                            for m in self._final_mappings:
+                                if hasattr(m, 'model_dump'):
+                                    mapped.append(m.model_dump())
+                                elif isinstance(m, dict):
+                                    mapped.append(m)
+                            resource_type = self._resource_type or 'Patient'
+                            fhir_doc = fhir_transformer.columnar_to_fhir(record, mapped, resource_type)
+                            out_doc = fhir_doc
+                            # Also upsert into FHIR store
+                            self._upsert_fhir_store(fhir_doc)
+                    except Exception as e:
+                        # On transform error, send to DLQ and continue
+                        print(f"[ERROR] Ingestion job {self.config.job_id}: Transform error: {e}")
+                        self.metrics.failed += 1
+                        self._write_failed_to_mongo(record, reason=f"transform_error: {str(e)}")
+                        out_doc = None
+                    
+                    if out_doc is not None:
+                        write_success = self._write_to_mongo(out_doc)
+                        if write_success:
+                            # Only increment processed if write was successful
+                            self.metrics.processed += 1
+                        else:
+                            # Write failed, count as failed
                             self.metrics.failed += 1
-                            self._write_failed_to_mongo(record, reason="transform_error")
-                            out_doc = None
-                        if out_doc is not None:
-                            self._write_to_mongo(out_doc)
+                            self._write_failed_to_mongo(record, reason="mongodb_write_failed")
+                
                 self.metrics.last_update = datetime.now()
         except asyncio.CancelledError:
             pass
+        except Exception as e:
+            import traceback
+            error_msg = f"Fatal error in run loop: {str(e)}"
+            print(f"[ERROR] Ingestion job {self.config.job_id}: {error_msg}")
+            print(f"[ERROR] Traceback: {traceback.format_exc()}")
+            self.status = "ERROR"
+            self.error_message = error_msg
+            self.error_details = {
+                "type": "runtime_error",
+                "error": str(e),
+                "traceback": traceback.format_exc()
+            }
+            raise
 
 
 class IngestionEngine:
@@ -397,7 +545,7 @@ class IngestionEngine:
 
     def _job_status_dict(self, job_id: str) -> Dict[str, Any]:
         job = self.jobs[job_id]
-        return {
+        status_dict = {
             "job_id": job_id,
             "job_name": job.config.job_name,
             "status": job.status,
@@ -419,6 +567,15 @@ class IngestionEngine:
             },
             "metrics": job.metrics.to_dict(),
         }
+        
+        # Include error information if status is ERROR
+        if job.status == "ERROR":
+            status_dict["error"] = {
+                "message": job.error_message or "Unknown error occurred",
+                "details": job.error_details or {}
+            }
+        
+        return status_dict
 
 
 _engine: Optional[IngestionEngine] = None

@@ -2439,8 +2439,8 @@ async def chat_query(
         # Get conversation history for context
         history = db.get_chat_history(conversation_id, limit=10)
         
-        # Get chatbot service
-        chatbot = get_chatbot_service()
+        # Get chatbot service (force reload to ensure latest code)
+        chatbot = get_chatbot_service(force_reload=False)  # Set to True if you want to force reload on each request
         
         # Execute RAG pipeline
         result = chatbot.chat(question, conversation_history=history)
@@ -2525,6 +2525,27 @@ async def reset_conversation(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to reset conversation: {str(e)}")
+
+
+@app.post("/api/v1/chat/reload")
+async def reload_chatbot_service(
+    current_user: TokenData = Depends(optional_auth)
+):
+    """
+    Reload chatbot service (useful after code changes without full restart)
+    
+    Returns:
+        Success confirmation
+    """
+    try:
+        from fhir_chatbot_service import reset_chatbot_service
+        reset_chatbot_service()
+        return {
+            "success": True,
+            "message": "Chatbot service reloaded"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to reload chatbot service: {str(e)}")
 
 
 @app.get("/api/v1/chat/conversations")
