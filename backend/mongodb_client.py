@@ -30,9 +30,9 @@ class MongoDBClient:
             self.client = MongoClient(connection_string, serverSelectionTimeoutMS=5000)
             # Test connection
             self.client.admin.command('ping')
-            print(f"✅ MongoDB connected: {connection_string}")
+            print(f"[OK] MongoDB connected: {connection_string}")
         except ConnectionFailure as e:
-            print(f"⚠️  MongoDB connection failed: {e}")
+            print(f"[WARN] MongoDB connection failed: {e}")
             print("   Platform will work without HL7 staging capability")
             self.client = None
         

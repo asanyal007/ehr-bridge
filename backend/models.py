@@ -36,12 +36,6 @@ class FieldMapping(BaseModel):
     transformParams: Optional[Dict[str, Any]] = None
     isApproved: bool = False
     isRejected: bool = False
-    # GPT-OSS enhanced fields (optional)
-    gpt_oss_reasoning: Optional[str] = None
-    gpt_oss_clinical_context: Optional[str] = None
-    gpt_oss_type_compatible: Optional[bool] = None
-    # Low confidence suggestion (<40% confidence)
-    low_confidence_suggestion: Optional[Dict[str, Any]] = None
 
 
 class CreateJobRequest(BaseModel):

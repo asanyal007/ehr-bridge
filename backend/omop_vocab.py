@@ -248,33 +248,15 @@ class OmopSemanticMatcher:
     """
     AI-powered semantic matcher for FHIR to OMOP concept mapping.
     
-    Uses 4-stage matching (enhanced with GPT-OSS):
+    Uses 3-stage matching:
     1. Direct lookup in OMOP concept table
-    2. GPT-OSS semantic embeddings (replaces S-BERT)
-    3. GPT-OSS reasoning for ambiguous cases (enhanced)
-    4. Fallback to Gemini AI if GPT-OSS unavailable
+    2. S-BERT semantic similarity on concept_name
+    3. Gemini AI reasoning for ambiguous cases
     """
     
-    def __init__(self, db_path: str = "data/interop.db", use_gpt_oss: bool = True):
+    def __init__(self, db_path: str = "data/interop.db"):
         self.vocab_service = OmopVocabularyService(db_path)
         self.db_manager = get_db_manager(db_path)
-        
-        # Initialize GPT-OSS client
-        self.gpt_oss_client = None
-        self.use_gpt_oss = use_gpt_oss
-        
-        if use_gpt_oss:
-            try:
-                from gpt_oss_client import get_gpt_oss_client
-                self.gpt_oss_client = get_gpt_oss_client()
-                if self.gpt_oss_client.is_available():
-                    print("[OK] OMOP Semantic Matcher using GPT-OSS for enhanced matching")
-                else:
-                    print("[WARNING] GPT-OSS unavailable, falling back to traditional methods")
-                    self.gpt_oss_client = None
-            except Exception as e:
-                print(f"[WARNING] GPT-OSS initialization failed: {e}")
-                self.gpt_oss_client = None
         
         # Confidence thresholds
         self.CONFIDENCE_THRESHOLDS = {
@@ -283,7 +265,7 @@ class OmopSemanticMatcher:
             'reject': 0.50
         }
         
-        print("[OK] OMOP Semantic Matcher initialized")
+        print("✅ OMOP Semantic Matcher initialized")
     
     def match_concept(
         self,
@@ -400,58 +382,19 @@ class OmopSemanticMatcher:
         source_display: str, 
         target_domain: str
     ) -> List[ConceptSuggestion]:
-        """Stage 2: GPT-OSS semantic similarity (enhanced from S-BERT)"""
+        """Stage 2: S-BERT semantic similarity (simulated)"""
         try:
-            # Get candidate concepts from OMOP vocabulary
+            # For now, simulate semantic matching with text search
+            # In production, this would use pre-computed embeddings
             concepts = self.vocab_service.search_concepts(
                 query=source_display,
                 domain_id=target_domain,
-                limit=10  # Get more candidates for GPT-OSS ranking
+                limit=3
             )
             
-            if not concepts:
-                return []
-            
             suggestions = []
-            
-            # Use GPT-OSS embeddings for semantic matching
-            if self.gpt_oss_client:
-                try:
-                    source_embedding = self.gpt_oss_client.get_embedding(source_display)
-                    
-                    # Calculate similarity for each candidate
-                    scored_concepts = []
-                    for concept in concepts:
-                        concept_embedding = self.gpt_oss_client.get_embedding(concept['concept_name'])
-                        similarity = self.gpt_oss_client.cosine_similarity(source_embedding, concept_embedding)
-                        scored_concepts.append((concept, similarity))
-                    
-                    # Sort by similarity
-                    scored_concepts.sort(key=lambda x: x[1], reverse=True)
-                    
-                    # Return top 5 with similarity scores
-                    for concept, similarity in scored_concepts[:5]:
-                        suggestion = ConceptSuggestion(
-                            concept_id=concept['concept_id'],
-                            concept_name=concept['concept_name'],
-                            vocabulary_id=concept['vocabulary_id'],
-                            domain_id=concept['domain_id'],
-                            standard_concept=concept['standard_concept'],
-                            confidence_score=round(similarity, 3),
-                            reasoning=f"GPT-OSS semantic similarity: '{source_display}' → '{concept['concept_name']}' (score: {similarity:.3f})",
-                            alternatives=[],
-                            source_code="",
-                            source_system=""
-                        )
-                        suggestions.append(suggestion)
-                    
-                    return suggestions
-                    
-                except Exception as e:
-                    print(f"[WARNING] GPT-OSS similarity failed: {e}, falling back to simple scoring")
-            
-            # Fallback: simple position-based scoring
-            for i, concept in enumerate(concepts[:5]):
+            for i, concept in enumerate(concepts):
+                # Simulate confidence based on text similarity
                 confidence = max(0.6, 0.9 - (i * 0.1))
                 
                 suggestion = ConceptSuggestion(
@@ -461,7 +404,7 @@ class OmopSemanticMatcher:
                     domain_id=concept['domain_id'],
                     standard_concept=concept['standard_concept'],
                     confidence_score=confidence,
-                    reasoning=f"Text similarity: '{source_display}' → '{concept['concept_name']}'",
+                    reasoning=f"Semantic similarity: '{source_display}' → '{concept['concept_name']}'",
                     alternatives=[],
                     source_code="",
                     source_system=""
@@ -471,7 +414,7 @@ class OmopSemanticMatcher:
             return suggestions
             
         except Exception as e:
-            print(f"[WARNING] Semantic similarity error: {e}")
+            print(f"⚠️ Semantic similarity error: {e}")
             return []
     
     def _ai_reasoning(
@@ -483,12 +426,12 @@ class OmopSemanticMatcher:
         context: Dict,
         semantic_matches: List[ConceptSuggestion]
     ) -> ConceptSuggestion:
-        """Stage 3/4: AI reasoning with GPT-OSS (primary) or Gemini (fallback)"""
+        """Stage 3: AI reasoning with Gemini"""
         try:
-            # Prepare candidate concepts
+            # Prepare candidate concepts for Gemini
             candidate_concepts = []
             if semantic_matches:
-                for match in semantic_matches[:5]:  # Include top 5 for GPT-OSS
+                for match in semantic_matches[:3]:
                     candidate_concepts.append({
                         'concept_id': match.concept_id,
                         'concept_name': match.concept_name,
@@ -496,189 +439,8 @@ class OmopSemanticMatcher:
                         'confidence': match.confidence_score
                     })
             
-            # Try GPT-OSS first
-            if self.gpt_oss_client:
-                try:
-                    return self._gpt_oss_reasoning(
-                        source_code, source_system, source_display,
-                        target_domain, context, candidate_concepts
-                    )
-                except Exception as e:
-                    print(f"[WARNING] GPT-OSS reasoning failed: {e}, falling back to Gemini")
-            
-            # Fallback to Gemini
-            return self._gemini_reasoning(
-                source_code, source_system, source_display,
-                target_domain, context, candidate_concepts
-            )
-            
-        except Exception as e:
-            print(f"[ERROR] AI reasoning failed: {e}")
-            # Return first semantic match or empty suggestion
-            if semantic_matches:
-                return semantic_matches[0]
-            else:
-                return ConceptSuggestion(
-                    concept_id=0,
-                    concept_name="",
-                    vocabulary_id="",
-                    domain_id=target_domain,
-                    standard_concept="",
-                    confidence_score=0.0,
-                    reasoning=f"AI reasoning failed: {str(e)}",
-                    alternatives=[],
-                    source_code=source_code,
-                    source_system=source_system
-                )
-    
-    def _gpt_oss_reasoning(
-        self,
-        source_code: str,
-        source_system: str,
-        source_display: str,
-        target_domain: str,
-        context: Dict,
-        candidate_concepts: List[Dict]
-    ) -> ConceptSuggestion:
-        """Enhanced reasoning using GPT-OSS"""
-        # Build comprehensive prompt
-        prompt = f"""You are an expert in clinical terminologies (LOINC, SNOMED, ICD-10, RxNorm) and the OMOP Common Data Model.
-
-**Task**: Map a source clinical code to the most appropriate OMOP Standard Concept ID.
-
-**Source Information**:
-- Code System: {source_system}
-- Code: {source_code}
-- Display Text: {source_display}
-- Target OMOP Domain: {target_domain}
-- Clinical Context: {context or 'None provided'}
-
-**Available OMOP Concept Candidates** (ranked by semantic similarity):
-{json.dumps(candidate_concepts, indent=2)}
-
-**Instructions**:
-1. Analyze the clinical meaning and context of the source code
-2. Consider the target domain requirements (e.g., Condition, Procedure, Drug, Measurement)
-3. Evaluate each candidate concept for semantic accuracy and clinical appropriateness
-4. Select the BEST matching OMOP concept ID, or 0 if no suitable match exists
-5. Provide a confidence score (0.0 to 1.0) based on:
-   - Semantic similarity (how well meanings align)
-   - Domain appropriateness
-   - Clinical context fit
-   - Terminology standard alignment
-6. Explain your reasoning in 2-3 concise sentences
-
-**Important**: 
-- Standard concepts are preferred (standard_concept = 'S')
-- Higher semantic similarity candidates should be prioritized unless clinical context dictates otherwise
-- Be conservative with confidence scores for ambiguous mappings
-
-**Response Format** (JSON only, no markdown):
-{{
-  "concept_id": <selected_concept_id or 0>,
-  "confidence": <0.0 to 1.0>,
-  "reasoning": "<brief explanation>",
-  "concerns": ["<any concerns or caveats>"]
-}}
-"""
-        
-        response = self.gpt_oss_client.chat_completion(
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a clinical terminology mapping expert. Provide accurate, structured analysis for OMOP concept matching."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            temperature=0.2,  # Low temperature for consistent reasoning
-            max_tokens=1000
-        )
-        
-        # Parse JSON response
-        response_text = response.strip()
-        if '```json' in response_text:
-            response_text = response_text.split('```json')[1].split('```')[0].strip()
-        elif '```' in response_text:
-            response_text = response_text.split('```')[1].split('```')[0].strip()
-        
-        result = json.loads(response_text)
-        
-        # Extract results
-        concept_id = result.get('concept_id', 0)
-        confidence = result.get('confidence', 0.0)
-        reasoning = result.get('reasoning', 'GPT-OSS AI reasoning')
-        concerns = result.get('concerns', [])
-        
-        if concept_id == 0:
-            return ConceptSuggestion(
-                concept_id=0,
-                concept_name="No suitable match",
-                vocabulary_id="",
-                domain_id=target_domain,
-                standard_concept="",
-                confidence_score=confidence,
-                reasoning=f"[GPT-OSS] {reasoning}",
-                alternatives=candidate_concepts[:3] if candidate_concepts else [],
-                source_code=source_code,
-                source_system=source_system
-            )
-        
-        # Get full concept details
-        concept = self.vocab_service.get_concept_by_id(concept_id)
-        if not concept:
-            # Fallback to first candidate if concept not found
-            if candidate_concepts:
-                concept_id = candidate_concepts[0]['concept_id']
-                concept = self.vocab_service.get_concept_by_id(concept_id)
-        
-        if concept:
-            # Build alternatives list from other candidates
-            alternatives = []
-            for cand in candidate_concepts[:3]:
-                if cand['concept_id'] != concept_id:
-                    alternatives.append(cand)
-            
-            return ConceptSuggestion(
-                concept_id=concept['concept_id'],
-                concept_name=concept['concept_name'],
-                vocabulary_id=concept['vocabulary_id'],
-                domain_id=concept['domain_id'],
-                standard_concept=concept['standard_concept'],
-                confidence_score=confidence,
-                reasoning=f"[GPT-OSS] {reasoning}" + (f" Concerns: {', '.join(concerns)}" if concerns else ""),
-                alternatives=alternatives,
-                source_code=source_code,
-                source_system=source_system
-            )
-        else:
-            return ConceptSuggestion(
-                concept_id=concept_id,
-                concept_name="Concept details unavailable",
-                vocabulary_id="",
-                domain_id=target_domain,
-                standard_concept="",
-                confidence_score=confidence,
-                reasoning=f"[GPT-OSS] {reasoning}",
-                alternatives=[],
-                source_code=source_code,
-                source_system=source_system
-            )
-    
-    def _gemini_reasoning(
-        self,
-        source_code: str,
-        source_system: str,
-        source_display: str,
-        target_domain: str,
-        context: Dict,
-        candidate_concepts: List[Dict]
-    ) -> ConceptSuggestion:
-        """Original Gemini AI reasoning (fallback)"""
-        # Build prompt for Gemini
-        prompt = f"""
+            # Build prompt for Gemini
+            prompt = f"""
 You are an expert in clinical terminologies and OMOP Common Data Model.
 
 Task: Map a source clinical code to the appropriate OMOP Standard Concept ID.
@@ -690,7 +452,7 @@ Source Information:
 - Target OMOP Domain: {target_domain}
 - Clinical Context: {context or 'None'}
 
-Available OMOP Concepts (Top candidates):
+Available OMOP Concepts (Top 3 candidates):
 {json.dumps(candidate_concepts, indent=2)}
 
 Instructions:
@@ -709,66 +471,85 @@ Respond in JSON:
   "reasoning": "..."
 }}
 """
-        
-        response = self.vocab_service.gemini_model.generate_content(prompt)
-        response_text = response.text.strip()
-        
-        # Parse JSON response
-        if '```json' in response_text:
-            response_text = response_text.split('```json')[1].split('```')[0].strip()
-        elif '```' in response_text:
-            response_text = response_text.split('```')[1].split('```')[0].strip()
-        
-        result = json.loads(response_text)
-        
-        # Get concept details
-        concept_id = result.get('concept_id', 0)
-        confidence = result.get('confidence', 0.0)
-        reasoning = result.get('reasoning', 'Gemini AI reasoning')
-        
-        if concept_id == 0:
-            # No suitable match found
+            
+            response = self.vocab_service.gemini_model.generate_content(prompt)
+            response_text = response.text.strip()
+            
+            # Parse JSON response
+            if '```json' in response_text:
+                response_text = response_text.split('```json')[1].split('```')[0].strip()
+            elif '```' in response_text:
+                response_text = response_text.split('```')[1].split('```')[0].strip()
+            
+            result = json.loads(response_text)
+            
+            # Get concept details
+            concept_id = result.get('concept_id', 0)
+            confidence = result.get('confidence', 0.0)
+            reasoning = result.get('reasoning', 'AI reasoning')
+            
+            if concept_id == 0:
+                # No suitable match found
+                return ConceptSuggestion(
+                    concept_id=0,
+                    concept_name="No Match Found",
+                    vocabulary_id="",
+                    domain_id=target_domain,
+                    standard_concept="",
+                    confidence_score=0.0,
+                    reasoning="No suitable OMOP concept found",
+                    alternatives=[],
+                    source_code=source_code,
+                    source_system=source_system
+                )
+            
+            # Get concept details
+            concept = self.vocab_service.get_concept_by_id(concept_id)
+            if not concept:
+                return ConceptSuggestion(
+                    concept_id=0,
+                    concept_name="Invalid Concept ID",
+                    vocabulary_id="",
+                    domain_id=target_domain,
+                    standard_concept="",
+                    confidence_score=0.0,
+                    reasoning="Invalid concept ID returned by AI",
+                    alternatives=[],
+                    source_code=source_code,
+                    source_system=source_system
+                )
+            
             return ConceptSuggestion(
-                concept_id=0,
-                concept_name="No Match Found",
-                vocabulary_id="",
-                domain_id=target_domain,
-                standard_concept="",
-                confidence_score=0.0,
-                reasoning=f"[Gemini] {reasoning}",
-                alternatives=candidate_concepts[:3] if candidate_concepts else [],
+                concept_id=concept['concept_id'],
+                concept_name=concept['concept_name'],
+                vocabulary_id=concept['vocabulary_id'],
+                domain_id=concept['domain_id'],
+                standard_concept=concept['standard_concept'],
+                confidence_score=confidence,
+                reasoning=reasoning,
+                alternatives=semantic_matches[:3] if semantic_matches else [],
                 source_code=source_code,
                 source_system=source_system
             )
-        
-        # Get concept details
-        concept = self.vocab_service.get_concept_by_id(concept_id)
-        if not concept:
+            
+        except Exception as e:
+            print(f"⚠️ AI reasoning error: {e}")
+            # Fallback to first semantic match or create a default
+            if semantic_matches:
+                return semantic_matches[0]
+            
             return ConceptSuggestion(
                 concept_id=0,
-                concept_name="Invalid Concept ID",
+                concept_name="Error in Processing",
                 vocabulary_id="",
                 domain_id=target_domain,
                 standard_concept="",
                 confidence_score=0.0,
-                reasoning=f"[Gemini] Invalid concept ID returned: {concept_id}",
+                reasoning=f"Error in AI processing: {str(e)}",
                 alternatives=[],
                 source_code=source_code,
                 source_system=source_system
             )
-        
-        return ConceptSuggestion(
-            concept_id=concept['concept_id'],
-            concept_name=concept['concept_name'],
-            vocabulary_id=concept['vocabulary_id'],
-            domain_id=concept['domain_id'],
-            standard_concept=concept['standard_concept'],
-            confidence_score=confidence,
-            reasoning=f"[Gemini] {reasoning}",
-            alternatives=candidate_concepts[:3] if candidate_concepts else [],
-            source_code=source_code,
-            source_system=source_system
-        )
     
     def analyze_fhir_coding(
         self,

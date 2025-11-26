@@ -4,18 +4,8 @@ Healthcare/EHR/HL7 focused with Sentence-BERT semantic matching
 SQLite database, JWT authentication, containerized deployment
 """
 import os
-import sys
 from typing import List, Optional, Dict, Any
 from datetime import datetime
-
-# Configure UTF-8 encoding for Windows
-if sys.platform == "win32":
-    try:
-        import codecs
-        sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'ignore')
-        sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'ignore')
-    except Exception:
-        pass  # Ignore if already configured
 from fastapi import FastAPI, HTTPException, Query, Depends, UploadFile, File, Body
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -110,8 +100,8 @@ class LoginResponse(BaseModel):
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on startup"""
-    print("[STARTUP] Starting AI Data Interoperability Platform")
-    print("[STARTUP] Initializing SQLite database...")
+    print("[START] Starting AI Data Interoperability Platform")
+    print("[INFO] Initializing SQLite database...")
     # Database is already initialized in get_db_manager()
     print("[OK] Database ready")
 
@@ -512,23 +502,13 @@ async def analyze_job(
         # Update status to ANALYZING
         db.update_job(job_id, {"status": JobStatus.ANALYZING.value})
         
-        # Run AI analysis using Sentence-BERT + GPT-OSS
-        print(f"[ANALYZE] Analyzing schemas for job {job_id}...")
+        # Run AI analysis using Sentence-BERT
+        print(f"🧠 Analyzing schemas for job {job_id}...")
         engine = get_ai_engine()
         suggested_mappings = engine.analyze_schemas(
             job.sourceSchema,
-            job.targetSchema,
-            include_reasoning=True  # Enable GPT-OSS reasoning and suggestions
+            job.targetSchema
         )
-        print(f"[ANALYZE] Generated {len(suggested_mappings)} mappings")
-        
-        # Verify low-confidence suggestions were generated
-        low_conf_mappings = [m for m in suggested_mappings if m.confidenceScore < 0.4]
-        if low_conf_mappings:
-            print(f"[ANALYZE] Found {len(low_conf_mappings)} low-confidence mappings (<40%)")
-            for m in low_conf_mappings:
-                has_suggestion = hasattr(m, 'low_confidence_suggestion') and m.low_confidence_suggestion is not None
-                print(f"[ANALYZE]   - {m.sourceField} ({m.confidenceScore:.0%}): {'HAS suggestion' if has_suggestion else 'MISSING suggestion'}")
         
         # Save suggested mappings and update status
         db.update_job(job_id, {
@@ -693,91 +673,6 @@ async def transform_data(
         raise HTTPException(status_code=500, detail=f"Error transforming data: {str(e)}")
 
 
-class GetSuggestionRequest(BaseModel):
-    """Request to get AI suggestion for a single mapping"""
-    sourceField: str
-    sourceType: str
-    targetField: str
-    confidence: float
-    targetResourceType: Optional[str] = None
-
-
-@app.post("/api/v1/jobs/{job_id}/get-suggestion")
-async def get_ai_suggestion(
-    job_id: str,
-    request: GetSuggestionRequest,
-    current_user: TokenData = Depends(get_current_user)
-):
-    """
-    Generate an on-demand AI suggestion for a low-confidence mapping
-    
-    Args:
-        job_id: Job identifier
-        request: Mapping details to get suggestion for
-        current_user: Current authenticated user
-        
-    Returns:
-        AI suggestion with action, reasoning, and alternative resource
-    """
-    try:
-        # Get AI engine with GPT-OSS
-        engine = get_ai_engine()
-        
-        # Check if GPT-OSS is available
-        if not hasattr(engine, 'gpt_oss_client') or not engine.gpt_oss_client:
-            raise HTTPException(
-                status_code=503,
-                detail="GPT-OSS client not available. Please ensure LM Studio is running with a model loaded."
-            )
-        
-        if not engine.gpt_oss_client.is_available():
-            raise HTTPException(
-                status_code=503,
-                detail="GPT-OSS server not responding. Please check if LM Studio is running on http://localhost:1234"
-            )
-        
-        # Generate suggestion
-        print(f"[API] Generating AI suggestion for {request.sourceField} -> {request.targetField}")
-        print(f"[API] GPT-OSS base_url: {engine.gpt_oss_client.base_url if engine.gpt_oss_client else 'N/A'}")
-        print(f"[API] GPT-OSS available: {engine.gpt_oss_client.is_available() if engine.gpt_oss_client else False}")
-        
-        # The suggest_action_for_low_confidence method now raises exceptions with detailed messages
-        # We'll catch and re-raise as HTTPException
-        suggestion = engine.gpt_oss_client.suggest_action_for_low_confidence(
-            source_field=request.sourceField,
-            source_type=request.sourceType,
-            current_target=request.targetField,
-            confidence=request.confidence,
-            target_resource_type=request.targetResourceType
-        )
-        
-        print(f"[API] Generated suggestion: {suggestion.get('action', 'UNKNOWN')}")
-        return suggestion
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        import traceback
-        error_msg = str(e)
-        print(f"[API ERROR] Exception type: {type(e).__name__}")
-        print(f"[API ERROR] Error message: {error_msg}")
-        traceback.print_exc()
-        
-        # If the error message already contains helpful info, use it
-        # Otherwise provide a generic message
-        if "Method Not Allowed" in error_msg or "405" in error_msg:
-            detail = f"Method Not Allowed (405) from GPT-OSS server. Please check LM Studio API settings and ensure OpenAI-compatible API is enabled at {engine.gpt_oss_client.base_url if engine.gpt_oss_client else 'http://127.0.0.1:1234'}. Error: {error_msg}"
-        elif "Connection" in error_msg or "refused" in error_msg.lower():
-            detail = f"Cannot connect to GPT-OSS server. Please ensure LM Studio is running on http://localhost:1234 with a model loaded. Error: {error_msg}"
-        else:
-            detail = f"Error generating AI suggestion: {error_msg}. Please check backend logs for details."
-        
-        raise HTTPException(
-            status_code=503,
-            detail=detail
-        )
-
-
 @app.get("/api/v1/health")
 async def health_check():
     """
@@ -855,7 +750,7 @@ async def omop_predict_table(schema: Dict[str, str] = Body(...), job_id: str = B
                     ]
                 }
         except Exception as e:
-            print(f"[WARNING] Could not check job data: {e}")
+            print(f"⚠️  Could not check job data: {e}")
             # Fall through to schema-based prediction
     
     # Fallback to schema-based prediction
@@ -1298,7 +1193,7 @@ async def normalize_values(
                     
                     # If no records with job_id, try without job_id filter (get any available data)
                     if not records:
-                        print(f"[WARNING] No records found for job_id={job_id} in {fhir_coll_name}, trying latest available data...")
+                        print(f"⚠️  No records found for job_id={job_id} in {fhir_coll_name}, trying latest available data...")
                         records = list(db_mongo[fhir_coll_name].find({}).sort('_id', -1).limit(20))
                     
                     for record in records:
@@ -1311,9 +1206,9 @@ async def normalize_values(
                     
                     extracted_values = extracted_values[:15]
                     if extracted_values:
-                        print(f"[OK] Extracted {len(extracted_values)} codes from {fhir_coll_name}")
+                        print(f"✅ Extracted {len(extracted_values)} codes from {fhir_coll_name}")
                 except Exception as e:
-                    print(f"[WARNING] Could not extract values from FHIR collection: {e}")
+                    print(f"⚠️  Could not extract values from FHIR collection: {e}")
             
             # PRIORITY 2: Try staging collection if FHIR didn't work
             if not extracted_values:
@@ -1350,15 +1245,15 @@ async def normalize_values(
                     
                     extracted_values = extracted_values[:15]
                     if extracted_values:
-                        print(f"[OK] Extracted {len(extracted_values)} values from staging collection")
+                        print(f"✅ Extracted {len(extracted_values)} values from staging collection")
                     
                 except Exception as e:
-                    print(f"[WARNING] Could not extract values from staging: {e}")
+                    print(f"⚠️  Could not extract values from staging: {e}")
             
             # Set values or return error
             if extracted_values:
                 values = extracted_values
-                print(f"[OK] Using {len(values)} real values for concept normalization")
+                print(f"✅ Using {len(values)} real values for concept normalization")
             else:
                 # NO SYNTHETIC DATA! Return empty if no real data found
                 values = []
@@ -2275,22 +2170,9 @@ async def control_ingestion_job(
 async def list_ingestion_jobs(current_user: TokenData = Depends(get_current_user)):
     try:
         engine = get_ingestion_engine()
-        jobs_list = engine.list_jobs()
-        return {"success": True, "jobs": jobs_list}
+        return {"success": True, "jobs": engine.list_jobs()}
     except Exception as e:
-        # Handle encoding errors on Windows - avoid string conversion of exception
-        import traceback
-        try:
-            # Try to log the error safely
-            error_type = type(e).__name__
-            # Get ASCII-safe representation of the error
-            error_repr = ascii(e)
-            print(f"[ERROR] Exception: {error_type}")
-            print(f"[ERROR] Details: {error_repr}")
-        except:
-            pass
-        # Return only the exception type to avoid encoding issues
-        raise HTTPException(status_code=500, detail=f"Failed to list jobs. Error type: {type(e).__name__}")
+        raise HTTPException(status_code=500, detail=f"Failed to list jobs: {str(e)}")
 
 
 @app.get("/api/v1/ingestion/jobs/{job_id}")
@@ -2322,33 +2204,17 @@ async def get_ingested_records(
     """Return recent ingested records for a given job id (MongoDB target only)."""
     try:
         from pymongo import MongoClient
-        
-        # Try to get job config from engine, but use defaults if job not found
         engine = get_ingestion_engine()
-        uri = 'mongodb://localhost:27017'
-        db_name = 'ehr'
-        coll_name = 'staging'
-        
-        try:
-            status = engine.get_job_status(job_id)
-            dest = status.get('destination_connector', {})
-            if dest.get('connector_type') and dest.get('connector_type') != 'mongodb':
-                return {"success": True, "records": [], "message": "Destination is not MongoDB"}
-            # Get config from job if available
-            uri = dest.get('config', {}).get('uri', uri)
-            db_name = dest.get('config', {}).get('database', db_name)
-            coll_name = dest.get('config', {}).get('collection', coll_name)
-        except (ValueError, KeyError):
-            # Job not found in engine (may have been from before restart)
-            # Fall back to default MongoDB connection
-            print(f"[INFO] Job {job_id} not found in engine, using default MongoDB config")
-        
-        # Query MongoDB directly
-        client = MongoClient(uri, serverSelectionTimeoutMS=5000)
+        status = engine.get_job_status(job_id)
+        dest = status.get('destination_connector', {})
+        if dest.get('connector_type') != 'mongodb':
+            return {"success": True, "records": [], "message": "Destination is not MongoDB"}
+        uri = dest.get('config', {}).get('uri', 'mongodb://localhost:27017')
+        db_name = dest.get('config', {}).get('database', 'ehr')
+        coll_name = dest.get('config', {}).get('collection', 'staging')
+        client = MongoClient(uri)
         coll = client[db_name][coll_name]
         docs = list(coll.find({"job_id": job_id}).sort("ingested_at", -1).limit(int(limit)))
-        client.close()
-        
         # serialize ObjectId and datetime
         def ser(d):
             d = dict(d)
@@ -2358,7 +2224,6 @@ async def get_ingested_records(
             return d
         return {"success": True, "records": [ser(x) for x in docs]}
     except Exception as e:
-        print(f"[ERROR] Failed to load records for job {job_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to load records: {str(e)}")
 
 
@@ -2371,36 +2236,18 @@ async def get_failed_records(
     """Return recent failed (DLQ) records for a given job id (MongoDB target only)."""
     try:
         from pymongo import MongoClient
-        
-        # Try to get job config from engine, but use defaults if job not found
         engine = get_ingestion_engine()
-        uri = 'mongodb://localhost:27017'
-        db_name = 'ehr'
-        base_coll = 'staging'
-        
-        try:
-            status = engine.get_job_status(job_id)
-            dest = status.get('destination_connector', {})
-            if dest.get('connector_type') and dest.get('connector_type') != 'mongodb':
-                return {"success": True, "records": [], "message": "Destination is not MongoDB"}
-            # Get config from job if available
-            uri = dest.get('config', {}).get('uri', uri)
-            db_name = dest.get('config', {}).get('database', db_name)
-            base_coll = dest.get('config', {}).get('collection', base_coll)
-        except (ValueError, KeyError):
-            # Job not found in engine (may have been from before restart)
-            # Fall back to default MongoDB connection
-            print(f"[INFO] Job {job_id} not found in engine, using default MongoDB config for failed records")
-        
+        status = engine.get_job_status(job_id)
+        dest = status.get('destination_connector', {})
+        if dest.get('connector_type') != 'mongodb':
+            return {"success": True, "records": [], "message": "Destination is not MongoDB"}
+        uri = dest.get('config', {}).get('uri', 'mongodb://localhost:27017')
+        db_name = dest.get('config', {}).get('database', 'ehr')
+        base_coll = dest.get('config', {}).get('collection', 'staging')
         dlq_coll = f"{base_coll}_dlq"
-        
-        # Query MongoDB directly
-        client = MongoClient(uri, serverSelectionTimeoutMS=5000)
+        client = MongoClient(uri)
         coll = client[db_name][dlq_coll]
         docs = list(coll.find({"job_id": job_id}).sort("failed_at", -1).limit(int(limit)))
-        client.close()
-        
-        # serialize ObjectId and datetime
         def ser(d):
             d = dict(d)
             d.pop('_id', None)
@@ -2409,7 +2256,6 @@ async def get_failed_records(
             return d
         return {"success": True, "records": [ser(x) for x in docs]}
     except Exception as e:
-        print(f"[ERROR] Failed to load failed records for job {job_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to load failed records: {str(e)}")
 
 
@@ -2468,7 +2314,7 @@ async def predict_fhir_resource(
         }
     except Exception as e:
         # Fallback to heuristic if Gemini fails
-        print(f"[WARNING] Gemini prediction failed, using fallback: {e}")
+        print(f"⚠️  Gemini prediction failed, using fallback: {e}")
         return {
             "success": True,
             "predictedResource": "Patient",
@@ -2705,101 +2551,6 @@ async def get_user_conversations(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get conversations: {str(e)}")
-
-
-@app.get("/api/v1/chat/llm/provider")
-async def get_llm_provider(current_user: TokenData = Depends(optional_auth)):
-    """
-    Get current LLM provider configuration
-    
-    Returns:
-        Current provider (gemini or local_llm) and connection status
-    """
-    try:
-        chatbot = get_chatbot_service()
-        
-        status = {
-            "provider": chatbot.provider,
-            "available": True
-        }
-        
-        if chatbot.provider == "local_llm":
-            status["local_llm_url"] = chatbot.local_llm.base_url
-            status["model_name"] = chatbot.local_llm.model_name
-            status["available"] = chatbot.local_llm.is_available()
-        
-        return {
-            "success": True,
-            **status
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get provider info: {str(e)}")
-
-
-@app.post("/api/v1/chat/llm/provider")
-async def set_llm_provider(
-    provider: str = Body(..., embed=True),
-    current_user: TokenData = Depends(optional_auth)
-):
-    """
-    Switch LLM provider
-    
-    Args:
-        provider: 'gemini' or 'local_llm'
-    
-    Returns:
-        Success confirmation with new provider info
-    """
-    try:
-        if provider not in ['gemini', 'local_llm']:
-            raise HTTPException(status_code=400, detail="Provider must be 'gemini' or 'local_llm'")
-        
-        # Update environment variable
-        os.environ['FHIR_LLM_PROVIDER'] = provider
-        
-        # Reinitialize chatbot service with new provider
-        global _chatbot_service
-        _chatbot_service = None
-        chatbot = get_chatbot_service()
-        
-        return {
-            "success": True,
-            "provider": chatbot.provider,
-            "message": f"Switched to {chatbot.provider} provider"
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to switch provider: {str(e)}")
-
-
-@app.get("/api/v1/chat/llm/models")
-async def get_local_models(current_user: TokenData = Depends(optional_auth)):
-    """
-    Get list of available local LLM models
-    
-    Returns:
-        List of models from local LLM server
-    """
-    try:
-        from local_llm_client import get_local_llm_client
-        local_llm = get_local_llm_client()
-        
-        if not local_llm.is_available():
-            return {
-                "success": False,
-                "message": f"Local LLM server not available at {local_llm.base_url}",
-                "models": []
-            }
-        
-        models = local_llm.get_models()
-        
-        return {
-            "success": True,
-            "base_url": local_llm.base_url,
-            "models": models,
-            "count": len(models)
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get models: {str(e)}")
 
 
 # Serve static frontend files
